@@ -6,6 +6,7 @@ on:
     branches: [ main ]
     paths:
       - "package.json"
+      - ".github/workflows/release-windows.yml"
 
 jobs:
   publish-windows:
@@ -35,7 +36,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: codeharborx-dialog-previews
-          path: ../../outputs/CodeHarborX-*.png
+          path: ui-previews/CodeHarborX-*.png
           if-no-files-found: warn
 
       - name: Publish GitHub release

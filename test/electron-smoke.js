@@ -6,6 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const assert = require('node:assert/strict');
+const outputDirectory = process.env.CI ? path.resolve('ui-previews') : path.resolve('../../outputs');
 const { TunnelManager } = require('../src/tunnel');
 app.whenReady().then(async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'codeharborx-electron-'));
@@ -49,7 +50,7 @@ app.whenReady().then(async () => {
     assert.equal((await builder.status()).projects.length, 0);
     await win.webContents.executeJavaScript("location.hash = 'settings'");
     await new Promise(r => setTimeout(r, 300));
-    await fs.mkdir(path.resolve('../../outputs'), { recursive: true });
+    await fs.mkdir(outputDirectory, { recursive: true });
     for (const theme of ['dark', 'light']) {
       const answer = dialogs.confirm(win, { theme, title: 'Delete this Builder project?', detail: 'The project and its files will move to the Windows Recycle Bin. You can restore them if you change your mind.' });
       const popup = BrowserWindow.getAllWindows().find(w => w !== win);
@@ -57,16 +58,16 @@ app.whenReady().then(async () => {
       await new Promise(resolve => setTimeout(resolve, 300));
       const state = await popup.webContents.executeJavaScript("({theme:document.documentElement.dataset.theme,focused:document.activeElement.id,title:document.querySelector('#dialogTitle').textContent})");
       assert.equal(state.theme, theme); assert.equal(state.focused, 'dialogCancel');
-      await fs.writeFile(path.resolve(`../../outputs/CodeHarborX-confirmation-${theme}.png`), (await popup.webContents.capturePage()).toPNG());
+      await fs.writeFile(path.join(outputDirectory, `CodeHarborX-confirmation-${theme}.png`), (await popup.webContents.capturePage()).toPNG());
       await popup.webContents.executeJavaScript("document.querySelector('#dialogCancel').click()");
       assert.equal(await answer, false);
       await win.webContents.executeJavaScript(`document.documentElement.dataset.theme = '${theme}'; showInfo('Saved to your harbor', 'Your settings are saved securely on this computer.');`);
       assert.equal(await win.webContents.executeJavaScript("document.querySelector('.shell').inert"), true);
-      await fs.writeFile(path.resolve(`../../outputs/CodeHarborX-popup-${theme}.png`), (await win.webContents.capturePage()).toPNG());
+      await fs.writeFile(path.join(outputDirectory, `CodeHarborX-popup-${theme}.png`), (await win.webContents.capturePage()).toPNG());
       await win.webContents.executeJavaScript("document.querySelector('#modalBody [data-close-modal]').click()");
       assert.equal(await win.webContents.executeJavaScript("document.querySelector('.shell').inert"), false);
     }
-    await fs.writeFile(path.resolve('../../outputs/CodeHarborX-tunnel-settings.png'), (await win.webContents.capturePage()).toPNG());
+    await fs.writeFile(path.join(outputDirectory, 'CodeHarborX-tunnel-settings.png'), (await win.webContents.capturePage()).toPNG());
     console.log('PASS: secure storage, deletion, native Recycle Bin, themed confirmations and popups in light and dark.');
   } finally { if (win) win.destroy(); await fs.rm(directory, { recursive: true, force: true }); }
   app.exit(0);

@@ -3,3 +3,4 @@ dist/
 build/tunnel-host.exe
 *.log
 .test-work/
+ui-previews/
