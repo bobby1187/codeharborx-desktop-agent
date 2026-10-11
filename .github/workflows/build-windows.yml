@@ -38,12 +38,16 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: CodeHarborX-Desktop-Agent-Windows
-          path: |
-            dist/*.exe
-            dist/*.blockmap
-            dist/*.yml
-          if-no-files-found: error
+      - name: Verify Windows installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path "dist" -Filter "CodeHarborX-Desktop-Agent-Setup-*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "CodeHarborX Windows installer was not created."
+          }
+          $latest = Get-ChildItem -Path "dist" -Filter "latest.yml" | Select-Object -First 1
+          if (-not $latest) {
+            throw "CodeHarborX update metadata latest.yml was not created."
+          }
+          Write-Host "Verified installer: $($installer.Name)"
+          Write-Host "Verified updater metadata: $($latest.Name)"
