@@ -1,7 +1,7 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.2.2",
-  "description": "CodeHarborX Desktop Agent — local NAS, AI runtime, MCP bridge, backup and packaging control.",
+  "version": "0.3.0",
+  "description": "CodeHarborX — full desktop command center with local NAS, AI runtime, MCP bridge, backup and update services.",
   "main": "src/main.js",
   "author": "CodeHarborX",
   "license": "UNLICENSED",
@@ -17,7 +17,7 @@
   },
   "build": {
     "appId": "com.codeharborx.agent",
-    "productName": "CodeHarborX Desktop Agent",
+    "productName": "CodeHarborX",
     "artifactName": "CodeHarborX-Desktop-Agent-Setup-${version}.${ext}",
     "directories": {
       "output": "dist",
@@ -44,7 +44,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CodeHarborX Desktop Agent"
+      "shortcutName": "CodeHarborX"
     },
     "publish": [
       {
