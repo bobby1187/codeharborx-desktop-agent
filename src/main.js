@@ -6,6 +6,7 @@ const os = require("os");
 const crypto = require("crypto");
 const http = require("http");
 const { autoUpdater } = require("electron-updater");
+const { createBuilder } = require("./builder");
 
 const APP_VERSION = app.getVersion();
 const MCP_PORT = 48321;
@@ -13,6 +14,7 @@ let mainWindow = null;
 let localWindow = null;
 let statusTimer = null;
 let mcpServer = null;
+let builder = null;
 let updateStatus = { state: "idle", version: null, message: "Automatic GitHub updates enabled" };
 
 const gotLock = app.requestSingleInstanceLock();
@@ -266,11 +268,13 @@ function toolDefinitions() {
     { name: "list_workflows", description: "List standalone CodeHarborX workflow records.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
     { name: "list_local_models", description: "List Ollama models available on this computer.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
     { name: "create_project", description: "Create a local CodeHarborX project record.", inputSchema: { type: "object", required: ["name"], properties: { name: { type: "string" }, sourceType: { type: "string" }, githubRepo: { type: "string" }, localPath: { type: "string" }, nasPath: { type: "string" } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } },
-    { name: "record_backup_status", description: "Record backup-layer status for a local project.", inputSchema: { type: "object", required: ["projectId"], properties: { projectId: { type: "string" }, backupDate: { type: "string" }, sourceCode: { type: "boolean" }, databaseDump: { type: "boolean" }, filesAssets: { type: "boolean" }, githubSnapshot: { type: "boolean" }, buildsInstallers: { type: "boolean" }, restoreRecord: { type: "boolean" } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } }
+    { name: "record_backup_status", description: "Record backup-layer status for a local project.", inputSchema: { type: "object", required: ["projectId"], properties: { projectId: { type: "string" }, backupDate: { type: "string" }, sourceCode: { type: "boolean" }, databaseDump: { type: "boolean" }, filesAssets: { type: "boolean" }, githubSnapshot: { type: "boolean" }, buildsInstallers: { type: "boolean" }, restoreRecord: { type: "boolean" } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } },
+    ...(builder ? builder.tools() : [])
   ];
 }
 
 async function callMcpTool(name, args) {
+  if (builder && String(name || "").startsWith("builder_")) return builder.callTool(name, args || {});
   const config = await loadConfig();
   if (name === "codeharborx_status") return platformSnapshot();
   if (name === "scan_nas_backups") return scanBackups(config.nasRoot);
@@ -424,6 +428,15 @@ ipcMain.handle("nas:open", async (_event, nasRoot) => {
   return { ok: true };
 });
 ipcMain.handle("ollama:check", async () => detectOllama());
+ipcMain.handle("builder:status", async () => builder.status());
+ipcMain.handle("builder:create", async (_event, input) => builder.createProject(input || {}));
+ipcMain.handle("builder:list-files", async (_event, projectId) => builder.listFiles(projectId));
+ipcMain.handle("builder:read-file", async (_event, projectId, filePath) => builder.readFile(projectId, filePath));
+ipcMain.handle("builder:write-file", async (_event, projectId, filePath, content) => builder.writeFile(projectId, filePath, content));
+ipcMain.handle("builder:generate", async (_event, input) => builder.generate(input || {}));
+ipcMain.handle("builder:start-preview", async (_event, projectId) => builder.startPreview(projectId));
+ipcMain.handle("builder:stop-preview", async (_event, projectId) => builder.stopPreview(projectId));
+ipcMain.handle("builder:open-folder", async (_event, projectId) => builder.openFolder(projectId));
 ipcMain.handle("window:open-local-controls", async () => { createLocalWindow(); return { ok: true }; });
 ipcMain.handle("system:open-data-folder", async () => {
   const error = await shell.openPath(app.getPath("userData"));
@@ -443,6 +456,7 @@ ipcMain.handle("update:install", async () => {
 });
 
 app.whenReady().then(async () => {
+  builder = createBuilder({ userDataPath: app.getPath("userData"), shell });
   await loadConfig();
   await loadData();
   startMcpServer();
@@ -458,5 +472,6 @@ app.whenReady().then(async () => {
 app.on("window-all-closed", () => {
   if (statusTimer) clearInterval(statusTimer);
   if (mcpServer) mcpServer.close();
+  if (builder) builder.closeAll();
   if (process.platform !== "darwin") app.quit();
 });
