@@ -7,6 +7,8 @@ on:
     paths:
       - "package.json"
       - "src/**"
+      - "build/**"
+      - "scripts/**"
       - ".github/workflows/build-windows.yml"
 
 jobs:
@@ -23,13 +25,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Fetch official CodeHarborX icon
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build | Out-Null
-          Invoke-WebRequest "https://codeharborx.floot.app/_cdn/static/9a83e5b8-1bf8-4b6e-9c29-640716acdcc2-codeharborx-icon-512.png" -OutFile "build/icon.png"
-          Copy-Item "build/icon.png" "src/icon.png" -Force
-
       - name: Install dependencies
         run: npm install
 
@@ -41,7 +36,7 @@ jobs:
       - name: Verify Windows installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path "dist" -Filter "CodeHarborX-Desktop-Agent-Setup-*.exe" | Select-Object -First 1
+          $installer = Get-ChildItem -Path "dist" -Filter "CodeHarborX-Setup-*.exe" | Select-Object -First 1
           if (-not $installer) {
             throw "CodeHarborX Windows installer was not created."
           }
