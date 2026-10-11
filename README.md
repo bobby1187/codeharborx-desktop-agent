@@ -1,19 +1,38 @@
 # CodeHarborX
 
-Standalone Windows development control center.
+Standalone Windows development control center **plus a local Builder studio**.
 
-## Standalone architecture
+## Version 0.5.0 — Builder
 
-CodeHarborX runs from the installed Electron application. The main interface is packaged with the installer and loads from local files rather than from a hosted web application.
+CodeHarborX keeps the existing command-center features and adds a Builder module for creating and editing websites and web-platform prototypes directly on the computer.
 
-Local application data is stored under the Windows Electron user-data directory. The configured UGREEN NAS is used as backup storage only.
+### Builder features
 
-### Included
+- Create local website and dashboard/platform projects
+- Project files stored under the CodeHarborX Builder workspace
+- Built-in source file browser and text editor
+- Save changes directly to local project files
+- Localhost live preview with start/stop controls
+- Open the project folder in Windows Explorer
+- Generate or revise project files with a locally installed Ollama model
+- Builder projects and previews remain local to the computer
+- MCP Builder tools for approved AI clients:
+  - `builder_status`
+  - `builder_create_project`
+  - `builder_list_files`
+  - `builder_read_file`
+  - `builder_write_file`
+  - `builder_generate`
+  - `builder_start_preview`
+  - `builder_stop_preview`
 
-- Local CodeHarborX command-center interface
+These MCP tools are what allow a securely connected AI client to inspect and build CodeHarborX projects without giving it unrestricted filesystem or shell access.
+
+## Existing CodeHarborX features retained
+
 - Dashboard and Command Center
 - Project Studio with persistent local project records
-- AI Agents and workflow records stored locally
+- AI Agents and workflow records
 - UGREEN NAS connectivity and backup scanning
 - Ollama discovery and local-model listing
 - Backup Center and restore-layer tracking
@@ -21,25 +40,22 @@ Local application data is stored under the Windows Electron user-data directory.
 - App Packaging and deployment workspace
 - Analytics, Knowledge Base, Asset Library, Extensions, and Team views
 - Local MCP server at `http://127.0.0.1:48321/mcp`
-- MCP tools for projects, backup health, agents, workflows, NAS scans, and local models
 - Light and dark themes
 - Automatic application updates through GitHub Releases
 
-## External services
+## Standalone architecture
 
-The installed CodeHarborX application does not require a hosted CodeHarborX runtime. GitHub is used for source control and application releases/updates. Ollama is accessed locally at `127.0.0.1:11434` when installed. The NAS is accessed directly through the configured Windows network path.
+The installed CodeHarborX application does not require a hosted CodeHarborX runtime. The UI is packaged in the installer and application/project metadata is stored locally. Builder source projects live in the local CodeHarborX Builder workspace.
+
+GitHub remains the source-control and application release/update channel. Ollama is accessed locally at `127.0.0.1:11434` when installed. The configured UGREEN NAS is accessed directly over the Windows network path.
 
 ## Windows installer
 
-GitHub Actions builds the Windows NSIS installer entirely from files stored in this repository. Branding assets are generated from the repository's local `build/icon.svg`; the build does not download UI or branding assets from another platform.
-
-## Application data
-
-Project records, settings, workflows, agent records, extension state, and activity history are stored in CodeHarborX's local Windows application-data directory. Use **Settings → Open local data folder** to inspect that location.
+GitHub Actions builds the Windows NSIS installer entirely from files in this repository. The official CodeHarborX branding is stored directly under `build/icon.png` and `build/logo.png`.
 
 ## Automatic updates
 
-Packaged builds check the official GitHub Releases feed after startup and every four hours. New versions download automatically. When an update is ready, CodeHarborX shows **Install & Restart**; downloaded updates can also install when the application exits.
+Packaged builds check GitHub Releases after startup and every four hours. New versions download automatically. When an update is ready, CodeHarborX shows **Install & Restart**.
 
 ## Signing
 
