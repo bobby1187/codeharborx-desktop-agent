@@ -70,6 +70,8 @@ async function refreshSystem() {
   $("mcpState").textContent = info.mcpListening ? "Listening" : "Offline";
   $("metricMcp").textContent = info.mcpListening ? "Listening" : "Offline";
   $("mcpUrl").textContent = "http://127.0.0.1:" + info.mcpPort + "/mcp";
+  $("currentVersion").textContent = "v" + info.appVersion;
+  if (info.updateStatus && info.updateStatus.message) $("updateStatus").textContent = info.updateStatus.message;
   const rows = [
     ["Device", info.hostname],["Platform", info.platform + " " + info.release],["Architecture", info.arch],
     ["CPU threads", String(info.cpus)],["Memory", (info.totalMemory/1073741824).toFixed(1) + " GB"],["MCP port", String(info.mcpPort)]
@@ -155,6 +157,10 @@ $("scan").addEventListener("click", scanBackups);
 $("quickScan").addEventListener("click", scanBackups);
 $("checkOllama").addEventListener("click", checkOllama);
 $("quickOllama").addEventListener("click", checkOllama);
+$("checkUpdates").addEventListener("click", async () => { try { $("updateStatus").textContent = "Checking for updates…"; await window.codeHarborX.checkForUpdates(); } catch (error) { $("updateStatus").textContent = error.message || String(error); } });
+$("installUpdate").addEventListener("click", async () => { await window.codeHarborX.installUpdate(); });
+window.codeHarborX.onUpdateStatus((status) => { $("updateStatus").textContent = status.message || status.state; $("installUpdate").style.display = status.state === "ready" ? "" : "none"; if (status.state === "ready") writeLog("Update " + status.version + " is ready to install."); });
+
 $("openNas").addEventListener("click", async () => {
   try { await window.codeHarborX.openNas(nasRoot.value.trim()); writeLog("Opened NAS backup root."); }
   catch (error) { writeLog("Could not open NAS: " + (error.message || error)); }
