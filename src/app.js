@@ -74,7 +74,7 @@ function dashboardPage() {
       card("Harbor pulse", "LOCAL DEVELOPMENT ACTIVITY", '<div class="activity">' + activity + "</div>") +
       card("Local operations", "QUICK ACTIONS",
         '<div class="quick"><button class="button" id="testNas">Test NAS</button><button class="button" id="scanNas">Scan backups</button><button class="button" id="checkOllama">Check Ollama</button><button class="button" data-go="desktop-agents">Desktop controls</button></div>' +
-        '<div class="notice" style="margin-top:12px"><strong>Standalone mode:</strong> no Floot runtime or hosted CodeHarborX server is used by this application.</div>') +
+        '<div class="notice" style="margin-top:12px"><strong>Standalone mode:</strong> no hosted application runtime is required.</div>') +
     "</section>";
 }
 
