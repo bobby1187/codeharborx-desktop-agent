@@ -2,7 +2,7 @@
 
 The official Windows bridge for CodeHarborX.
 
-## Version 0.2.1
+## Version 0.2.2
 
 This release upgrades the original proof-of-concept into a branded local control application.
 
@@ -30,7 +30,7 @@ To make it available to supported ChatGPT environments, connect the local MCP th
 
 GitHub Actions produces:
 
-`CodeHarborX-Desktop-Agent-Setup-0.2.1.exe`
+`CodeHarborX-Desktop-Agent-Setup-0.2.2.exe`
 
 ## Signing
 
@@ -39,6 +39,6 @@ The development installer is currently unsigned. Windows may show Unknown Publis
 
 ## Automatic updates
 
-Version 0.2.1 is the bootstrap release for automatic updates. It checks the official GitHub Releases feed on startup and every four hours. New versions download automatically; when ready, the app can install them with **Install & Restart**. Downloaded updates also install when the app exits.
+Version 0.2.1 introduced the automatic updater. Version 0.2.2 validates the end-to-end GitHub Releases update path and keeps future version reporting synchronized with the installed app package. It checks the official GitHub Releases feed on startup and every four hours. New versions download automatically; when ready, the app can install them with **Install & Restart**. Downloaded updates also install when the app exits.
 
 The release workflow publishes the installer, blockmap, and `latest.yml` metadata required by Electron's differential updater.
