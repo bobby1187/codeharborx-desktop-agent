@@ -215,7 +215,25 @@ function settingsPage() {
       '<div class="settings-form"><div class="field"><label>UGREEN NAS backup root</label><input id="nasRootInput" value="'+esc(snapshot.config.nasRoot)+'"></div>' +
       '<div class="field"><label>Theme</label><select id="themeSelect"><option value="dark" '+(snapshot.config.theme==="dark"?"selected":"")+'>Dark</option><option value="light" '+(snapshot.config.theme==="light"?"selected":"")+'>Light</option></select></div>' +
       '<div class="section-actions"><button class="button primary" id="saveSettings">Save settings</button><button class="button" id="openDataFolder">Open local data folder</button></div>' +
-      '<div class="notice"><strong>No hosted runtime:</strong> this configuration and your CodeHarborX records live in the installed application&apos;s Windows data folder.</div></div>');
+      '<div class="notice"><strong>No hosted runtime:</strong> this configuration and your CodeHarborX records live in the installed application&apos;s Windows data folder.</div></div>') + tunnelSettings();
+}
+
+function tunnelSettings() {
+  const t = snapshot.tunnel || {};
+  return card('ChatGPT tunnel', 'PRIVATE CONNECTION',
+    '<p id="tunnelMessage">'+esc(t.message || 'ChatGPT tunnel disconnected')+'</p>' +
+    '<div class="settings-form"><div class="field"><label for="tunnelExe">Official tunnel-client executable</label><input id="tunnelExe" readonly value="'+esc(t.executable)+'"><button class="button" id="selectTunnel">Browse…</button></div>' +
+    '<div class="field"><label for="tunnelProfile">Existing tunnel profile</label><input id="tunnelProfile" value="'+esc(t.profile || 'codeharborx')+'"></div>' +
+    '<div class="field"><label for="tunnelKey">Runtime credential '+(t.credentialSaved ? '(saved securely; leave blank to keep)' : '(required)')+'</label><input id="tunnelKey" type="password" autocomplete="off" spellcheck="false" placeholder="Enter a runtime credential"></div>' +
+    '<label><input type="checkbox" id="tunnelAuto" '+(t.autoStart !== false ? 'checked' : '')+'> Start when CodeHarborX opens</label>' +
+    '<p>Credentials are encrypted for your Windows account. Only select the official OpenAI client. The selected executable receives the credential when started.</p>' +
+    '<div class="section-actions"><button class="button primary" id="saveTunnel">Save tunnel settings</button><button class="button" id="startTunnel">Start</button><button class="button" id="stopTunnel">Stop</button><button class="button" id="restartTunnel">Restart</button><button class="button" id="forgetTunnel">Remove saved credential</button></div></div>');
+}
+
+function updateTunnelStatus() {
+  const t = snapshot?.tunnel || {};
+  $('#tunnelStatus').textContent = t.state === 'connected' ? 'ChatGPT connected' : 'ChatGPT disconnected';
+  const message = $('#tunnelMessage'); if (message) message.textContent = t.message || 'ChatGPT tunnel disconnected';
 }
 
 function render() {
@@ -232,9 +250,24 @@ function render() {
   const page = map[route] ? map[route]() : simplePage(route);
   $("#main").innerHTML = page;
   bindActions();
+  updateTunnelStatus();
 }
 
 function bindActions() {
+  const selectTunnel = $('#selectTunnel');
+  if (selectTunnel) selectTunnel.onclick = async () => { const selected = await window.codeHarborX.selectTunnelExecutable(); if (selected) $('#tunnelExe').value = selected; };
+  const saveTunnel = $('#saveTunnel');
+  if (saveTunnel) saveTunnel.onclick = async () => {
+    const input = { executable: $('#tunnelExe').value, profile: $('#tunnelProfile').value, autoStart: $('#tunnelAuto').checked, key: $('#tunnelKey').value };
+    $('#tunnelKey').value = ''; saveTunnel.disabled = true;
+    try { snapshot.tunnel = await window.codeHarborX.configureTunnel(input); render(); }
+    catch { showInfo('ChatGPT tunnel', 'Could not save the tunnel settings. Check the official executable, profile and Windows secure storage.'); }
+    finally { input.key = ''; saveTunnel.disabled = false; }
+  };
+  for (const [id, method] of [['startTunnel','startTunnel'],['stopTunnel','stopTunnel'],['restartTunnel','restartTunnel'],['forgetTunnel','forgetTunnelCredential']]) {
+    const button = $('#'+id);
+    if (button) button.onclick = async () => { button.disabled = true; try { snapshot.tunnel = await window.codeHarborX[method](); render(); } catch { showInfo('ChatGPT tunnel', 'Tunnel operation failed. Check your local settings.'); } finally { button.disabled = false; } };
+  }
   document.querySelectorAll("[data-go]").forEach((b)=>b.onclick=()=>navigate(b.dataset.go));
   document.querySelectorAll("#newProject").forEach((b)=>b.onclick=openProjectModal);
   document.querySelectorAll("#openDataFolder").forEach((b)=>b.onclick=()=>window.codeHarborX.openDataFolder());
@@ -374,6 +407,10 @@ window.codeHarborX.onUpdateStatus((status)=>{
   if (text) text.textContent = status.message || status.state;
   const install = $("#installUpdate");
   if (install) install.style.display = status.state === "ready" ? "" : "none";
+});
+window.codeHarborX.onTunnelStatus(status => {
+  if (snapshot) snapshot.tunnel = { ...snapshot.tunnel, ...status };
+  updateTunnelStatus();
 });
 window.codeHarborX.onPlatformStatus((status)=>{
   snapshot = status;

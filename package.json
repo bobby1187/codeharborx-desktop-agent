@@ -1,12 +1,16 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "CodeHarborX — standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
+    "test": "node --test test/*.test.js",
+    "build:tunnel-host": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/build-tunnel-host.ps1",
+    "predist:win": "npm run build:tunnel-host",
+    "prerelease:win": "npm run build:tunnel-host",
     "start": "electron .",
     "dist:win": "electron-builder --win nsis --publish never",
     "release:win": "electron-builder --win nsis --publish always"
@@ -29,6 +33,7 @@
       "build/logo.png",
       "package.json"
     ],
+    "extraResources": [{ "from": "build/tunnel-host.exe", "to": "tunnel-host.exe" }],
     "win": {
       "icon": "build/icon.png",
       "target": [

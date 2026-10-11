@@ -26,12 +26,15 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Windows installer
         run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Validate tunnel lifecycle
+        run: npm test
 
       - name: Verify Windows installer
         shell: pwsh

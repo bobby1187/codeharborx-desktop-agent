@@ -1,6 +1,13 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codeHarborX", {
+  configureTunnel: input => ipcRenderer.invoke('tunnel:configure', input),
+  forgetTunnelCredential: () => ipcRenderer.invoke('tunnel:forget'),
+  startTunnel: () => ipcRenderer.invoke('tunnel:start'),
+  stopTunnel: () => ipcRenderer.invoke('tunnel:stop'),
+  restartTunnel: () => ipcRenderer.invoke('tunnel:restart'),
+  selectTunnelExecutable: () => ipcRenderer.invoke('tunnel:select'),
+  onTunnelStatus: callback => ipcRenderer.on('tunnel:status', (_event, status) => callback(status)),
   getConfig: () => ipcRenderer.invoke("config:get"),
   saveConfig: (config) => ipcRenderer.invoke("config:save", config),
   getSnapshot: () => ipcRenderer.invoke("platform:snapshot"),

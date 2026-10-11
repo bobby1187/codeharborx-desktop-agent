@@ -22,7 +22,13 @@ jobs:
           node-version: "22"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Build and validate tunnel supervisor
+        run: |
+          npm run build:tunnel-host
+          npm test
+          npx electron test/electron-smoke.js
 
       - name: Publish GitHub release
         run: npm run release:win

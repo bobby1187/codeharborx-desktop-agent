@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, safeStorage, dialog } = require("electron");
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
@@ -7,6 +7,10 @@ const crypto = require("crypto");
 const http = require("http");
 const { autoUpdater } = require("electron-updater");
 const { createBuilder } = require("./builder");
+const { TunnelManager } = require("./tunnel");
+let tunnel = null;
+let quitReady = false;
+let quitPending = false;
 
 const APP_VERSION = app.getVersion();
 const MCP_PORT = 48321;
@@ -254,7 +258,8 @@ async function platformSnapshot() {
     ollama,
     mcpListening: Boolean(mcpServer),
     mcpPort: MCP_PORT,
-    updateStatus
+    updateStatus,
+    tunnel: tunnel ? await tunnel.view() : { state: 'disconnected' }
   };
 }
 
@@ -415,6 +420,22 @@ function createLocalWindow() {
 }
 
 ipcMain.handle("config:get", async () => loadConfig());
+function tunnelHandler(channel, action) {
+  ipcMain.handle(channel, async (event, input) => {
+    const expected = require('url').pathToFileURL(path.join(__dirname, 'app.html')).href;
+    if (event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Untrusted tunnel request.');
+    try { return await action(input); } catch { throw new Error('Tunnel operation failed. Check the executable, profile and secure credential.'); }
+  });
+}
+tunnelHandler('tunnel:configure', input => tunnel.configure(input || {}));
+tunnelHandler('tunnel:forget', () => tunnel.forget());
+tunnelHandler('tunnel:start', () => tunnel.start());
+tunnelHandler('tunnel:stop', () => tunnel.stop());
+tunnelHandler('tunnel:restart', () => tunnel.restart());
+tunnelHandler('tunnel:select', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, { title: 'Select the official tunnel-client executable', filters: [{ name: 'Windows executable', extensions: ['exe'] }], properties: ['openFile'] });
+  return result.canceled ? null : result.filePaths[0];
+});
 ipcMain.handle("config:save", async (_event, input) => saveConfig(input));
 ipcMain.handle("platform:snapshot", async () => platformSnapshot());
 ipcMain.handle("platform:add-project", async (_event, input) => createProject(input));
@@ -451,7 +472,7 @@ ipcMain.handle("update:check", async () => {
 });
 ipcMain.handle("update:install", async () => {
   if (updateStatus.state !== "ready") return { ok: false, reason: "No downloaded update is ready." };
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  setImmediate(async () => { if (tunnel) await tunnel.stop(); autoUpdater.quitAndInstall(false, true); });
   return { ok: true };
 });
 
@@ -460,13 +481,26 @@ app.whenReady().then(async () => {
   await loadConfig();
   await loadData();
   startMcpServer();
+  tunnel = new TunnelManager({ directory: path.join(app.getPath('userData'), 'tunnel'), safeStorage,
+    host: app.isPackaged ? path.join(process.resourcesPath, 'tunnel-host.exe') : path.join(__dirname, '..', 'build', 'tunnel-host.exe'),
+    notify: status => broadcast('tunnel:status', status) });
+  await tunnel.init();
   createMainWindow();
+  if (tunnel.config.autoStart) await tunnel.start();
   setupAutoUpdater();
   statusTimer = setInterval(async () => {
     try {
       broadcast("platform:status", await platformSnapshot());
     } catch {}
   }, 60_000);
+});
+
+app.on('before-quit', event => {
+  if (quitReady || !tunnel) return;
+  event.preventDefault();
+  if (quitPending) return;
+  quitPending = true;
+  tunnel.stop().finally(() => { quitReady = true; app.quit(); });
 });
 
 app.on("window-all-closed", () => {
