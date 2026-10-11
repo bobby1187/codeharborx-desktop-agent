@@ -5,7 +5,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { spawn, execFileSync } = require('node:child_process');
 
-for (const mode of ['stop', 'parent-pipe EOF', 'supervisor crash']) test(`Windows hidden host cleans up on ${mode} without credential output`, { skip: process.platform !== 'win32', timeout: 20000 }, async t => {
+for (const mode of ['stop', 'parent-pipe EOF', 'supervisor crash']) test(`Windows hidden host cleans up on ${mode} without credential output`, { skip: process.platform !== 'win32', timeout: 30000 }, async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'codeharborx-native-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   const executable = path.join(directory, 'fixture.exe');
@@ -17,11 +17,16 @@ for (const mode of ['stop', 'parent-pipe EOF', 'supervisor crash']) test(`Window
   let output = ''; child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; });
   const ended = new Promise((resolve, reject) => { child.on('exit', code => resolve(code)); child.on('error', reject); });
   child.stdin.write(JSON.stringify({ executable, profile: 'fixture', key: 'synthetic-native-credential', healthFile: path.join(directory, 'health.url') })+'\n');
-  await new Promise(r => setTimeout(r, 1500));
+  const deadline = Date.now() + 15000;
+  let readyPid;
+  while (!readyPid && Date.now() < deadline) {
+    try { readyPid = Number(await fs.readFile(pidFile, 'utf8')); } catch {}
+    if (!readyPid) await new Promise(r => setTimeout(r, 100));
+  }
+  assert.ok(readyPid, 'The sample client must install its interrupt handler before the shutdown test.');
   if (mode === 'supervisor crash') {
-    const pid = Number(await fs.readFile(pidFile, 'utf8'));
     child.kill(); await ended; await new Promise(r => setTimeout(r, 300));
-    assert.throws(() => process.kill(pid, 0));
+    assert.throws(() => process.kill(readyPid, 0));
   } else {
     child.stdin.end(mode === 'stop' ? 'stop\n' : '');
     assert.equal(await ended, 0);
