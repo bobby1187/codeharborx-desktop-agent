@@ -2,6 +2,15 @@
 
 Standalone Windows development control center **plus a local Builder studio**.
 
+## Version 0.6.1 — Delete controls
+
+- Builder project cards include **Delete**; the editor includes **Delete file**.
+- Every deletion asks for confirmation in a native Windows dialog, with **Cancel** selected by default.
+- Builder projects and files move to the Windows Recycle Bin. Project deletion also stops its preview; a failed Recycle Bin operation leaves the files in place.
+- Delete controls are available for saved Project Studio, AI Agent, Workflow, Knowledge, Asset, Deployment and Team records. Record removal keeps external files, GitHub repositories and NAS backups intact. The owner record is protected.
+- Deletion is available only in the trusted app UI, not through MCP. Builder operations validate workspace boundaries and reject linked file paths, metadata files and deletion during a build.
+- Existing Builder tools, branding, automatic updates and secure background tunnel behavior remain.
+
 ## Version 0.6.0 — Background ChatGPT tunnel
 
 CodeHarborX now manages the official OpenAI tunnel-client in a hidden background process. Start, stop, restart, automatic reconnect with bounded backoff, and live connection status are available without keeping PowerShell open. All v0.5.0 features and branding remain.

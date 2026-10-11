@@ -6,6 +6,50 @@ const http = require("http");
 function createBuilder(options) {
   const root = path.join(options.userDataPath, "builder-workspaces");
   const previews = new Map();
+  const generating = new Set();
+  const deleting = new Set();
+
+  async function deletionTarget(id, rel) {
+    if (typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new Error('Invalid Builder project.');
+    const base = path.resolve(dir(id));
+    const realRoot = await fsp.realpath(root);
+    if (path.dirname(base) !== path.resolve(root) || (await fsp.lstat(base)).isSymbolicLink() || (await fsp.realpath(base)) !== path.join(realRoot, id)) throw new Error('Builder project must be inside its workspace.');
+    const info = await manifest(id);
+    if (!info || info.id !== id) throw new Error('Builder project not found.');
+    if (generating.has(id)) throw new Error('Wait for the current build to finish before deleting.');
+    if (rel === undefined) return { target: base, info };
+    if (typeof rel !== 'string' || !rel || /[\\:\0]/.test(rel) || rel.split('/').some(p => !p || p === '.' || p === '..' || p.startsWith('.') || p === 'node_modules')) throw new Error('Invalid Builder file path.');
+    const target = safe(id, rel);
+    let current = base;
+    for (const part of rel.split('/')) {
+      current = path.join(current, part);
+      if ((await fsp.lstat(current)).isSymbolicLink()) throw new Error('Linked paths cannot be deleted from Builder.');
+    }
+    if (!(await fsp.stat(target)).isFile()) throw new Error('Select a Builder file to delete.');
+    if (!(await fsp.realpath(target)).startsWith((await fsp.realpath(base)) + path.sep)) throw new Error('File is outside the Builder project.');
+    return { target, info };
+  }
+  async function deleteProject(id) {
+    if (deleting.has(id)) throw new Error('Deletion is already in progress.');
+    deleting.add(id);
+    try {
+      const { target } = await deletionTarget(id);
+      await stopPreview(id);
+      await options.shell.trashItem(target);
+      return { ok: true };
+    } finally { deleting.delete(id); }
+  }
+  async function deleteFile(id, rel) {
+    if (deleting.has(id)) throw new Error('Deletion is already in progress.');
+    deleting.add(id);
+    try {
+      const { target } = await deletionTarget(id, rel);
+      await options.shell.trashItem(target);
+      const m = await manifest(id);
+      m.updatedAt = new Date().toISOString(); await saveManifest(id, m);
+      return { ok: true };
+    } finally { deleting.delete(id); }
+  }
 
   function slug(value) {
     return String(value || "project").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "project";
@@ -92,6 +136,8 @@ function createBuilder(options) {
   }
 
   async function writeFile(id, rel, content) {
+    if (deleting.has(id)) throw new Error('Deletion is in progress.');
+    if (!(await manifest(id))) throw new Error('Builder project not found.');
     if (!rel || String(rel).startsWith(".") || String(rel).includes("..")) throw new Error("Invalid Builder file path.");
     const target = safe(id, rel);
     await fsp.mkdir(path.dirname(target), { recursive:true });
@@ -103,7 +149,7 @@ function createBuilder(options) {
     return { ok:true, path:rel };
   }
 
-  async function generate(input) {
+  async function generateInternal(input) {
     const id = input && input.projectId;
     const prompt = String(input && input.prompt || "").trim();
     const model = String(input && input.model || "").trim();
@@ -139,6 +185,12 @@ function createBuilder(options) {
     }
     if (!changed.length) throw new Error("The model did not return any usable files.");
     return { ok:true, files:changed, model };
+  }
+  async function generate(input) {
+    const id = input && input.projectId;
+    if (generating.has(id) || deleting.has(id)) throw new Error('This project already has a build or deletion in progress.');
+    generating.add(id);
+    try { return await generateInternal(input); } finally { generating.delete(id); }
   }
 
   function mime(file) {
@@ -177,7 +229,7 @@ function createBuilder(options) {
     id = slug(id);
     const p = previews.get(id);
     if (!p) return { ok:true };
-    await new Promise(resolve => p.server.close(resolve));
+    await new Promise(resolve => { p.server.close(resolve); p.server.closeAllConnections(); });
     previews.delete(id);
     return { ok:true };
   }
@@ -210,9 +262,9 @@ function createBuilder(options) {
     if (name === "builder_stop_preview") return stopPreview(args.projectId);
   }
   function closeAll() {
-    for (const p of previews.values()) { try { p.server.close(); } catch {} }
+    for (const p of previews.values()) { try { p.server.close(); p.server.closeAllConnections(); } catch {} }
     previews.clear();
   }
-  return { status,createProject,listFiles,readFile,writeFile,generate,startPreview,stopPreview,openFolder,tools,callTool,closeAll };
+  return { status,createProject,listFiles,readFile,writeFile,generate,startPreview,stopPreview,openFolder,tools,callTool,closeAll,deletionTarget,deleteProject,deleteFile };
 }
 module.exports = { createBuilder };

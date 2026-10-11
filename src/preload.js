@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codeHarborX", {
+  deleteRecord: (collection, id) => ipcRenderer.invoke('platform:delete-record', collection, id),
+  builderDeleteProject: id => ipcRenderer.invoke('builder:delete-project', id),
+  builderDeleteFile: (id, rel) => ipcRenderer.invoke('builder:delete-file', id, rel),
   configureTunnel: input => ipcRenderer.invoke('tunnel:configure', input),
   forgetTunnelCredential: () => ipcRenderer.invoke('tunnel:forget'),
   startTunnel: () => ipcRenderer.invoke('tunnel:start'),

@@ -9,7 +9,7 @@
 
   function projectCard(project) {
     const preview = project.preview && project.preview.running ? '<span class="badge good">Preview live</span>' : '<span class="badge info">Local</span>';
-    return '<article class="builder-project-card" data-builder-open="'+e(project.id)+'"><div><small>'+e(project.template.toUpperCase())+'</small><h3>'+e(project.name)+'</h3><p>'+e(project.path)+'</p></div>'+preview+'</article>';
+    return '<article class="builder-project-card" data-builder-open="'+e(project.id)+'"><div><small>'+e(project.template.toUpperCase())+'</small><h3>'+e(project.name)+'</h3><p>'+e(project.path)+'</p></div><div>'+preview+' <button class="mini-button danger" data-builder-delete="'+e(project.id)+'" '+(busy?'disabled':'')+'>Delete</button></div></article>';
   }
 
   function fileButtons() {
@@ -43,7 +43,7 @@
     const previewUrl = active.preview && active.preview.running ? active.preview.url : "";
     html += '<section class="builder-studio">' +
       '<aside class="builder-files"><div class="builder-pane-head"><div><small>PROJECT</small><b>'+e(active.name)+'</b></div><button class="mini-button" id="builderOpenFolder">Folder</button></div><div class="builder-file-list">'+fileButtons()+'</div></aside>' +
-      '<div class="builder-editor"><div class="builder-pane-head"><div><small>EDITOR</small><b>'+e(selectedFile || "Choose a file")+'</b></div><div><button class="mini-button" id="builderRefreshFiles">Refresh</button> <button class="mini-button primary" id="builderSave" '+(!selectedFile?"disabled":"")+'>Save</button></div></div>' +
+      '<div class="builder-editor"><div class="builder-pane-head"><div><small>EDITOR</small><b>'+e(selectedFile || "Choose a file")+'</b></div><div><button class="mini-button" id="builderRefreshFiles">Refresh</button> <button class="mini-button danger" id="builderDeleteFile" '+(!selectedFile||busy?'disabled':'')+'>Delete file</button> <button class="mini-button primary" id="builderSave" '+(!selectedFile?"disabled":"")+'>Save</button></div></div>' +
       '<textarea id="builderEditor" spellcheck="false" placeholder="Choose a file from the left.">'+e(fileContent)+'</textarea>' +
       '<div class="builder-ai"><div class="field"><label>Local AI model</label><select id="builderModel">'+modelOptions(snapshot)+'</select></div><div class="field grow"><label>Tell CodeHarborX what to build or change</label><textarea id="builderPrompt" placeholder="Example: Turn this into a modern Afghan restaurant website with a menu, grocery store section, contact area, and mobile layout."></textarea></div><button class="button primary" id="builderGenerate" '+(busy?"disabled":"")+'>'+(busy?"Building…":"Build with Local AI")+'</button></div></div>' +
       '<div class="builder-preview"><div class="builder-pane-head"><div><small>LIVE PREVIEW</small><b>'+(previewUrl?e(previewUrl):"Not running")+'</b></div><div><button class="mini-button" id="builderPreview">'+(previewUrl?"Restart":"Start")+'</button> '+(previewUrl?'<button class="mini-button danger" id="builderStopPreview">Stop</button>':"")+'</div></div>' +
@@ -85,6 +85,29 @@
   }
 
   function bind(ctx) {
+    document.querySelectorAll('[data-builder-delete]').forEach(button => button.onclick = async event => {
+      event.stopPropagation();
+      const id = button.dataset.builderDelete;
+      button.disabled = true;
+      try {
+        const result = await window.codeHarborX.builderDeleteProject(id);
+        if (result.canceled) return;
+        if (selectedProject === id) { selectedProject = null; selectedFile = null; files = []; fileContent = ''; }
+        await reloadState(ctx);
+      } catch (error) { ctx.showInfo('Delete project', error.message || String(error)); }
+      finally { button.disabled = false; }
+    });
+    const deleteFile = document.querySelector('#builderDeleteFile');
+    if (deleteFile) deleteFile.onclick = async () => {
+      deleteFile.disabled = true;
+      try {
+        const result = await window.codeHarborX.builderDeleteFile(selectedProject, selectedFile);
+        if (result.canceled) return;
+        selectedFile = null; fileContent = '';
+        await reloadState(ctx); await loadFiles(ctx, selectedProject);
+      } catch (error) { ctx.showInfo('Delete file', error.message || String(error)); }
+      finally { deleteFile.disabled = false; }
+    };
     document.querySelectorAll("#builderNew,#builderNewEmpty").forEach(b => b.onclick = () => newProject(ctx));
     document.querySelectorAll("[data-builder-open]").forEach(b => b.onclick = async () => {
       selectedProject = b.dataset.builderOpen;

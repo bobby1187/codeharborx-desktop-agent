@@ -1,5 +1,6 @@
 // Run with Electron after the native supervisor is built. Uses synthetic credentials only.
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
+const { createBuilder } = require('../src/builder');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -18,7 +19,12 @@ app.whenReady().then(async () => {
     assert.equal(safeStorage.decryptString(encrypted), 'synthetic-electron-credential');
     const snapshot = { appVersion: require('../package.json').version, config: { theme: 'dark', nasRoot: '' }, tunnel: await manager.view(), nasReachable: false, data: { projects: [], agents: [], workflows: [], extensions: [], activity: [] }, ollama: { status: 'offline', models: [] }, updateStatus: { state: 'dev' } };
     ipcMain.handle('platform:snapshot', () => snapshot);
-    ipcMain.handle('builder:status', () => ({ root: '', projects: [] }));
+    const builder = createBuilder({ userDataPath: directory, shell });
+    const project = await builder.createProject({ name: 'Deletion smoke fixture' });
+    ipcMain.handle('builder:status', () => builder.status());
+    ipcMain.handle('builder:list-files', (_event, id) => builder.listFiles(id));
+    ipcMain.handle('builder:read-file', (_event, id, rel) => builder.readFile(id, rel));
+    ipcMain.handle('builder:delete-project', () => ({ canceled: true }));
     win = new BrowserWindow({ show: false, width: 1440, height: 920, webPreferences: { preload: path.resolve('src/preload.js'), contextIsolation: true, nodeIntegration: false } });
     const errors = []; win.webContents.on('console-message', (_event, level, message) => { if (level >= 3) errors.push(message); });
     await win.loadFile(path.resolve('src/app.html'), { hash: 'settings' });
@@ -26,9 +32,24 @@ app.whenReady().then(async () => {
     const check = await win.webContents.executeJavaScript(`({ password: document.querySelector('#tunnelKey')?.type, buttons: ['saveTunnel','startTunnel','stopTunnel','restartTunnel','forgetTunnel'].every(id => !!document.getElementById(id)), text: document.body.innerText, title: document.title })`);
     assert.equal(check.password, 'password'); assert.equal(check.buttons, true); assert.equal(check.title, 'CodeHarborX');
     assert.equal(check.text.includes('synthetic-electron-credential'), false); assert.equal(errors.length, 0);
+    await win.webContents.executeJavaScript("location.hash = 'builder'");
+    await new Promise(r => setTimeout(r, 300));
+    assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('[data-builder-delete]')"), true);
+    await win.webContents.executeJavaScript("document.querySelector('[data-builder-delete]').click()");
+    await new Promise(r => setTimeout(r, 300));
+    assert.equal((await builder.status()).projects.length, 1);
+    await win.webContents.executeJavaScript("document.querySelector('[data-builder-open]').click()");
+    await new Promise(r => setTimeout(r, 300));
+    assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('#builderDeleteFile')"), true);
+    await builder.deleteFile(project.id, 'styles.css');
+    assert.equal((await builder.listFiles(project.id)).includes('styles.css'), false);
+    await builder.deleteProject(project.id);
+    assert.equal((await builder.status()).projects.length, 0);
+    await win.webContents.executeJavaScript("location.hash = 'settings'");
+    await new Promise(r => setTimeout(r, 300));
     await fs.mkdir(path.resolve('../../outputs'), { recursive: true });
     await fs.writeFile(path.resolve('../../outputs/CodeHarborX-tunnel-settings.png'), (await win.webContents.capturePage()).toPNG());
-    console.log('PASS: Windows DPAPI encryption, credential isolation, branded Settings UI and tunnel controls.');
+    console.log('PASS: Windows DPAPI, credential isolation, branded UI, deletion controls, canceled deletion, and native Windows Recycle Bin.');
   } finally { if (win) win.destroy(); await fs.rm(directory, { recursive: true, force: true }); }
   app.exit(0);
 }).catch(() => { console.error('FAIL: Electron smoke validation.'); app.exit(1); });

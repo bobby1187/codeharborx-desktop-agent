@@ -1,6 +1,6 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "CodeHarborX — standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",
@@ -33,7 +33,12 @@
       "build/logo.png",
       "package.json"
     ],
-    "extraResources": [{ "from": "build/tunnel-host.exe", "to": "tunnel-host.exe" }],
+    "extraResources": [
+      {
+        "from": "build/tunnel-host.exe",
+        "to": "tunnel-host.exe"
+      }
+    ],
     "win": {
       "icon": "build/icon.png",
       "target": [

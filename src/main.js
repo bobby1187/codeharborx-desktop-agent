@@ -8,6 +8,7 @@ const http = require("http");
 const { autoUpdater } = require("electron-updater");
 const { createBuilder } = require("./builder");
 const { TunnelManager } = require("./tunnel");
+const { removeRecord } = require('./records');
 let tunnel = null;
 let quitReady = false;
 let quitPending = false;
@@ -420,6 +421,36 @@ function createLocalWindow() {
 }
 
 ipcMain.handle("config:get", async () => loadConfig());
+function requireLocalUI(event) {
+  const expected = require('url').pathToFileURL(path.join(__dirname, 'app.html')).href;
+  if (event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Only the CodeHarborX app can request deletion.');
+}
+async function confirmDelete(event, name, detail) {
+  requireLocalUI(event);
+  const result = await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
+    type: 'warning', title: 'CodeHarborX', message: `Delete ${name}?`, detail,
+    buttons: ['Cancel', 'Delete'], defaultId: 0, cancelId: 0, noLink: true
+  });
+  return result.response === 1;
+}
+ipcMain.handle('builder:delete-project', async (event, id) => {
+  requireLocalUI(event);
+  const { info } = await builder.deletionTarget(id);
+  if (!(await confirmDelete(event, info.name, 'This moves the Builder project and all its files to the Windows Recycle Bin and stops its preview.'))) return { canceled: true };
+  return builder.deleteProject(id);
+});
+ipcMain.handle('builder:delete-file', async (event, id, rel) => {
+  requireLocalUI(event); await builder.deletionTarget(id, rel);
+  if (!(await confirmDelete(event, rel, 'This moves the file to the Windows Recycle Bin. Any unsaved edits to this file will be discarded.'))) return { canceled: true };
+  return builder.deleteFile(id, rel);
+});
+ipcMain.handle('platform:delete-record', async (event, collection, id) => {
+  requireLocalUI(event);
+  const { record } = removeRecord(await loadData(), collection, id);
+  if (!(await confirmDelete(event, record.name || record.title || 'this record', 'This removes the saved record from CodeHarborX. Source files, GitHub repositories, NAS backups and external services are kept.'))) return { canceled: true };
+  const { data } = removeRecord(await loadData(), collection, id);
+  await saveData(data); return { ok: true };
+});
 function tunnelHandler(channel, action) {
   ipcMain.handle(channel, async (event, input) => {
     const expected = require('url').pathToFileURL(path.join(__dirname, 'app.html')).href;

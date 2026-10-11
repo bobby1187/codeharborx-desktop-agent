@@ -45,11 +45,12 @@ function drawNav() {
   ).join("");
   document.querySelectorAll("[data-route]").forEach((button) => button.onclick = () => navigate(button.dataset.route));
 }
-function listRows(items, icon, mapper) {
+function listRows(items, icon, mapper, collection) {
   if (!items.length) return '<div class="empty">Nothing has been added yet.</div>';
   return '<div class="list">' + items.map((item) => {
     const row = mapper(item);
-    return '<div class="row"><div class="row-icon">' + icon + "</div><div><b>" + esc(row.title) + "</b><small>" + esc(row.meta) + "</small></div>" + badge(row.status || "Local", row.type || "info") + "</div>";
+    const remove = collection && !(collection === 'team' && item.id === 'owner') ? '<button class="button danger" data-delete-collection="'+esc(collection)+'" data-delete-id="'+esc(item.id)+'">Delete</button>' : '';
+    return '<div class="row"><div class="row-icon">' + icon + "</div><div><b>" + esc(row.title) + "</b><small>" + esc(row.meta) + "</small></div>" + badge(row.status || "Local", row.type || "info") + remove + "</div>";
   }).join("") + "</div>";
 }
 
@@ -100,7 +101,7 @@ function projectsPage() {
       meta:(p.githubRepo || p.localPath || "Local project") + " · " + projectLayers(p) + "/6 backup layers",
       status:p.status.replace("_"," "),
       type:p.status === "protected" ? "good" : p.status === "needs_backup" ? "warn" : "info"
-    })));
+    }), 'projects'));
 }
 
 function agentsPage() {
@@ -111,13 +112,13 @@ function agentsPage() {
       card("Model router","LOCAL AI",stat("Ollama",snapshot.ollama.status === "online" ? "Online" : "Offline",snapshot.ollama.models.length + " detected models")) +
       card("External AI","MCP CLIENTS",stat("Control surface","MCP","127.0.0.1 only")) +
     "</section>" +
-    card("AI crew","LOCAL AGENT RECORDS",listRows(agents,"✦",(a)=>({title:a.name,meta:a.specialty+" · "+a.provider+" · "+a.model,status:a.status,type:"good"})));
+    card("AI crew","LOCAL AGENT RECORDS",listRows(agents,"✦",(a)=>({title:a.name,meta:a.specialty+" · "+a.provider+" · "+a.model,status:a.status,type:"good"}), 'agents'));
 }
 
 function workflowsPage() {
   const workflows = snapshot.data.workflows || [];
   return pageHead("AUTOMATION","Workflows","Reusable local workflow records for backup, validation, builds, restore testing, and deployment.") +
-    card("Workflow registry",workflows.length+" LOCAL WORKFLOWS",listRows(workflows,"⇄",(w)=>({title:w.name,meta:w.description,status:w.status,type:w.status==="active"?"good":"info"})));
+    card("Workflow registry",workflows.length+" LOCAL WORKFLOWS",listRows(workflows,"⇄",(w)=>({title:w.name,meta:w.description,status:w.status,type:w.status==="active"?"good":"info"}), 'workflows'));
 }
 
 function desktopPage() {
@@ -172,7 +173,10 @@ function simplePage(key) {
     "knowledge":["REFERENCE","Knowledge Base","Keep project notes and local documentation beside the project registry.","Knowledge library","Knowledge entries can be added to the local data model."],
     "assets":["FILES","Asset Library","Track project assets and backup locations from the installed app.","Asset index","No indexed assets yet."]
   }[key];
-  return pageHead(cfg[0],cfg[1],cfg[2]) + card(cfg[3],"LOCAL-FIRST",'<div class="empty">'+esc(cfg[4])+"</div>");
+  const collection = { knowledge: 'knowledge', assets: 'assets', deployments: 'deployments' }[key];
+  const entries = collection ? snapshot.data[collection] || [] : [];
+  const content = entries.length ? listRows(entries, '◈', entry => ({ title: entry.name || entry.title || 'Saved item', meta: entry.description || entry.path || '', status: entry.status || 'Local' }), collection) : '<div class="empty">'+esc(cfg[4])+'</div>';
+  return pageHead(cfg[0],cfg[1],cfg[2]) + card(cfg[3],"LOCAL-FIRST",content);
 }
 
 function analyticsPage() {
@@ -196,7 +200,7 @@ function extensionsPage() {
 function teamPage() {
   const team = snapshot.data.team || [];
   return pageHead("ACCESS","Team & Roles","Local role records for the standalone installation.") +
-    card("People",team.length+" LOCAL RECORDS",listRows(team,"♙",(x)=>({title:x.name,meta:x.role,status:"Local",type:"good"})));
+    card("People",team.length+" LOCAL RECORDS",listRows(team,"♙",(x)=>({title:x.name,meta:x.role,status:"Local",type:"good"}), 'team'));
 }
 
 function aiControlPage() {
@@ -254,6 +258,14 @@ function render() {
 }
 
 function bindActions() {
+  document.querySelectorAll('[data-delete-collection]').forEach(button => button.onclick = async () => {
+    button.disabled = true;
+    try {
+      const result = await window.codeHarborX.deleteRecord(button.dataset.deleteCollection, button.dataset.deleteId);
+      if (!result.canceled) await refresh();
+    } catch (error) { showInfo('Delete record', error.message || String(error)); }
+    finally { button.disabled = false; }
+  });
   const selectTunnel = $('#selectTunnel');
   if (selectTunnel) selectTunnel.onclick = async () => { const selected = await window.codeHarborX.selectTunnelExecutable(); if (selected) $('#tunnelExe').value = selected; };
   const saveTunnel = $('#saveTunnel');
