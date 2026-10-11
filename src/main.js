@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
@@ -7,11 +7,11 @@ const crypto = require("crypto");
 const http = require("http");
 const { autoUpdater } = require("electron-updater");
 
-const AGENT_VERSION = app.getVersion();
+const APP_VERSION = app.getVersion();
 const MCP_PORT = 48321;
 let mainWindow = null;
-let localControlsWindow = null;
-let heartbeatTimer = null;
+let localWindow = null;
+let statusTimer = null;
 let mcpServer = null;
 let updateStatus = { state: "idle", version: null, message: "Automatic GitHub updates enabled" };
 
@@ -20,72 +20,121 @@ if (!gotLock) app.quit();
 else app.on("second-instance", () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
     mainWindow.focus();
   }
 });
 
 function configPath() {
-  return path.join(app.getPath("userData"), "agent-config.json");
+  return path.join(app.getPath("userData"), "config.json");
 }
 
-async function loadStoredConfig() {
+function dataPath() {
+  return path.join(app.getPath("userData"), "platform-data.json");
+}
+
+function defaultConfig() {
+  return {
+    nasRoot: "\\\\10.0.0.132\\personal_folder\\Project_Backups",
+    deviceId: crypto.randomUUID(),
+    theme: "dark"
+  };
+}
+
+function defaultData() {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: 1,
+    createdAt: now,
+    projects: [],
+    agents: [
+      { id: "architect", name: "Project Architect", specialty: "Planning & architecture", provider: "local/cloud", model: "Selectable", status: "ready" },
+      { id: "backup-guardian", name: "Backup Guardian", specialty: "Backup verification", provider: "local", model: "Rules + AI", status: "ready" },
+      { id: "release-builder", name: "Release Builder", specialty: "Packaging & releases", provider: "local", model: "Automation", status: "ready" },
+      { id: "code-reviewer", name: "Code Reviewer", specialty: "Code quality", provider: "local/cloud", model: "Selectable", status: "ready" }
+    ],
+    workflows: [
+      { id: "backup-verify", name: "Backup verification", status: "active", description: "Scan the CodeHarborX backup root and verify recovery layers." },
+      { id: "release-build", name: "Release build", status: "ready", description: "Prepare a Windows release and updater metadata through GitHub Actions." },
+      { id: "restore-check", name: "Restore-point check", status: "ready", description: "Review the latest restore record for registered projects." }
+    ],
+    extensions: [
+      { id: "github", name: "GitHub", enabled: true },
+      { id: "ollama", name: "Ollama", enabled: true },
+      { id: "nas", name: "UGREEN NAS", enabled: true },
+      { id: "mcp", name: "MCP Bridge", enabled: true }
+    ],
+    knowledge: [],
+    assets: [],
+    deployments: [],
+    team: [{ id: "owner", name: "Owner", role: "Administrator" }],
+    activity: [{ id: crypto.randomUUID(), at: now, message: "Standalone CodeHarborX data store initialized." }]
+  };
+}
+
+async function readJson(file, fallback) {
   try {
-    return JSON.parse(await fsp.readFile(configPath(), "utf8"));
+    return JSON.parse(await fsp.readFile(file, "utf8"));
   } catch {
-    return {};
+    return fallback;
   }
+}
+
+async function writeJson(file, value) {
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  await fsp.writeFile(file, JSON.stringify(value, null, 2), "utf8");
 }
 
 async function loadConfig() {
-  const stored = await loadStoredConfig();
-  let agentKey = stored.agentKey || "";
-  if (!agentKey && stored.agentKeyEncrypted && safeStorage.isEncryptionAvailable()) {
-    try { agentKey = safeStorage.decryptString(Buffer.from(stored.agentKeyEncrypted, "base64")); } catch {}
-  }
-  return {
-    server: stored.server || "https://codeharborx.floot.app",
-    nasRoot: stored.nasRoot || "\\\\10.0.0.132\\personal_folder\\Project_Backups",
-    agentKey,
-    deviceId: stored.deviceId || crypto.randomUUID(),
-    theme: stored.theme || "dark"
+  const existing = await readJson(configPath(), {});
+  const base = defaultConfig();
+  const config = {
+    nasRoot: existing.nasRoot || base.nasRoot,
+    deviceId: existing.deviceId || base.deviceId,
+    theme: existing.theme === "light" ? "light" : "dark"
   };
-}
-
-async function saveConfig(config) {
-  const stored = {
-    server: config.server,
-    nasRoot: config.nasRoot,
-    deviceId: config.deviceId || crypto.randomUUID(),
-    theme: config.theme || "dark"
-  };
-  if (config.agentKey) {
-    if (safeStorage.isEncryptionAvailable()) {
-      stored.agentKeyEncrypted = safeStorage.encryptString(config.agentKey).toString("base64");
-    } else {
-      stored.agentKey = config.agentKey;
-    }
-  }
-  await fsp.mkdir(path.dirname(configPath()), { recursive: true });
-  await fsp.writeFile(configPath(), JSON.stringify(stored, null, 2), "utf8");
-}
-
-async function ensureConfig() {
-  const config = await loadConfig();
-  await saveConfig(config);
+  await writeJson(configPath(), config);
   return config;
 }
 
-async function pathExists(target) {
-  try { await fsp.access(target, fs.constants.F_OK); return true; }
-  catch { return false; }
+async function saveConfig(input) {
+  const current = await loadConfig();
+  const next = {
+    nasRoot: String(input?.nasRoot || current.nasRoot).trim(),
+    deviceId: current.deviceId,
+    theme: input?.theme === "light" ? "light" : "dark"
+  };
+  await writeJson(configPath(), next);
+  return next;
 }
 
-function unwrapSuperjson(text) {
+async function loadData() {
+  const existing = await readJson(dataPath(), null);
+  if (existing && Array.isArray(existing.projects)) return existing;
+  const seeded = defaultData();
+  await writeJson(dataPath(), seeded);
+  return seeded;
+}
+
+async function saveData(data) {
+  await writeJson(dataPath(), data);
+  return data;
+}
+
+async function addActivity(message) {
+  const data = await loadData();
+  data.activity = Array.isArray(data.activity) ? data.activity : [];
+  data.activity.unshift({ id: crypto.randomUUID(), at: new Date().toISOString(), message });
+  data.activity = data.activity.slice(0, 250);
+  await saveData(data);
+}
+
+async function pathExists(target) {
   try {
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === "object" && Object.prototype.hasOwnProperty.call(parsed, "json") ? parsed.json : parsed;
+    await fsp.access(target, fs.constants.F_OK);
+    return true;
   } catch {
-    return {};
+    return false;
   }
 }
 
@@ -101,135 +150,182 @@ async function detectOllama() {
   }
 }
 
-async function sendHeartbeat(config) {
-  const nasReachable = await pathExists(config.nasRoot);
-  const ollama = await detectOllama();
-  const body = {
-    json: {
-      deviceId: config.deviceId,
-      deviceName: os.hostname(),
-      version: AGENT_VERSION,
-      nasReachable,
-      localAiStatus: ollama.status,
-      localModelCount: ollama.models.length,
-      mcpStatus: mcpServer ? "listening" : "offline",
-      mcpPort: mcpServer ? MCP_PORT : null
-    }
-  };
-  const response = await fetch(config.server.replace(/\/+$/, "") + "/_api/agent/heartbeat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.agentKey },
-    body: JSON.stringify(body)
-  });
-  const text = await response.text();
-  const data = unwrapSuperjson(text);
-  if (!response.ok) throw new Error(data.error || "CodeHarborX returned HTTP " + response.status);
-  return { nasReachable, ollama, data };
-}
-
-async function agentControl(config, action, input) {
-  if (!config.agentKey) throw new Error("Pair the Desktop Agent with CodeHarborX first.");
-  const response = await fetch(config.server.replace(/\/+$/, "") + "/_api/agent/control", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + config.agentKey },
-    body: JSON.stringify({ json: { action, input: input || {} } })
-  });
-  const text = await response.text();
-  const data = unwrapSuperjson(text);
-  if (!response.ok) throw new Error(data.error || "CodeHarborX control request failed.");
-  return data.data;
-}
-
 async function scanBackups(nasRoot) {
   if (!(await pathExists(nasRoot))) throw new Error("NAS path is not reachable.");
-  const categories = ["Floot_Exports","Database_Backups","Files_and_Assets","GitHub_Snapshots","Builds_and_Installers","Restore_Points"];
+  const categories = ["Floot_Exports", "Database_Backups", "Files_and_Assets", "GitHub_Snapshots", "Builds_and_Installers", "Restore_Points"];
   const results = [];
   for (const category of categories) {
     const categoryPath = path.join(nasRoot, category);
     const exists = await pathExists(categoryPath);
-    if (!exists) { results.push({ category, exists: false, projects: 0, files: 0 }); continue; }
+    if (!exists) {
+      results.push({ category, exists: false, projects: 0, files: 0 });
+      continue;
+    }
     const entries = await fsp.readdir(categoryPath, { withFileTypes: true });
-    let files = 0;
-    try {
-      const children = await Promise.all(entries.filter((e) => e.isDirectory()).map(async (e) => {
-        try { return (await fsp.readdir(path.join(categoryPath, e.name))).length; } catch { return 0; }
-      }));
-      files = children.reduce((a,b) => a+b, 0);
-    } catch {}
-    results.push({ category, exists: true, projects: entries.filter((e) => e.isDirectory()).length, files });
+    const folders = entries.filter((entry) => entry.isDirectory());
+    let files = entries.filter((entry) => entry.isFile()).length;
+    for (const folder of folders) {
+      try {
+        files += (await fsp.readdir(path.join(categoryPath, folder.name))).length;
+      } catch {}
+    }
+    results.push({ category, exists: true, projects: folders.length, files });
   }
   return results;
 }
 
+function projectStatus(project) {
+  const s = project.latestSnapshot;
+  if (!s) return project.githubRepo ? "needs_backup" : "setup";
+  const layers = [s.sourceCode, s.databaseDump, s.filesAssets, s.githubSnapshot, s.buildsInstallers, s.restoreRecord].filter(Boolean).length;
+  return layers === 6 ? "protected" : "needs_backup";
+}
+
+async function createProject(input) {
+  if (!input?.name || !String(input.name).trim()) throw new Error("Project name is required.");
+  const data = await loadData();
+  const project = {
+    id: crypto.randomUUID(),
+    name: String(input.name).trim(),
+    sourceType: input.sourceType || "local",
+    githubRepo: String(input.githubRepo || "").trim(),
+    localPath: String(input.localPath || "").trim(),
+    nasPath: String(input.nasPath || "").trim(),
+    createdAt: new Date().toISOString(),
+    lastBackupAt: null,
+    latestSnapshot: null
+  };
+  data.projects.unshift(project);
+  data.activity.unshift({ id: crypto.randomUUID(), at: new Date().toISOString(), message: "Project added: " + project.name });
+  await saveData(data);
+  return project;
+}
+
+async function recordBackup(input) {
+  const data = await loadData();
+  const project = data.projects.find((p) => String(p.id) === String(input?.projectId));
+  if (!project) throw new Error("Project not found.");
+  const backupDate = input.backupDate || new Date().toISOString();
+  project.latestSnapshot = {
+    backupDate,
+    sourceCode: Boolean(input.sourceCode),
+    databaseDump: Boolean(input.databaseDump),
+    filesAssets: Boolean(input.filesAssets),
+    githubSnapshot: Boolean(input.githubSnapshot),
+    buildsInstallers: Boolean(input.buildsInstallers),
+    restoreRecord: Boolean(input.restoreRecord)
+  };
+  project.lastBackupAt = backupDate;
+  data.activity.unshift({ id: crypto.randomUUID(), at: new Date().toISOString(), message: "Backup status recorded: " + project.name });
+  await saveData(data);
+  return project;
+}
+
+async function platformSnapshot() {
+  const [config, data, ollama] = await Promise.all([loadConfig(), loadData(), detectOllama()]);
+  const nasReachable = await pathExists(config.nasRoot);
+  const projects = data.projects.map((p) => ({ ...p, status: projectStatus(p) }));
+  return {
+    appVersion: APP_VERSION,
+    deviceName: os.hostname(),
+    platform: os.platform(),
+    release: os.release(),
+    arch: os.arch(),
+    cpus: os.cpus().length,
+    totalMemory: os.totalmem(),
+    freeMemory: os.freemem(),
+    config,
+    data: { ...data, projects },
+    nasReachable,
+    ollama,
+    mcpListening: Boolean(mcpServer),
+    mcpPort: MCP_PORT,
+    updateStatus
+  };
+}
+
 function toolDefinitions() {
   return [
-    { name:"codeharborx_status", description:"Read CodeHarborX Desktop Agent, NAS, local AI and MCP status.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"list_projects", description:"List projects registered in CodeHarborX with source and backup status.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"backup_health", description:"Inspect CodeHarborX backup and restore-point health.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"scan_nas_backups", description:"Scan the dedicated CodeHarborX Project_Backups folders on the local NAS without modifying files.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"list_ai_agents", description:"List configured CodeHarborX AI agent records.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"list_workflows", description:"List CodeHarborX automation workflow records.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"list_local_models", description:"List Ollama models available locally on this Desktop Agent.", inputSchema:{type:"object",properties:{},additionalProperties:false}, annotations:{readOnlyHint:true,destructiveHint:false} },
-    { name:"create_project", description:"Create a CodeHarborX project registry record. This does not deploy or delete anything.", inputSchema:{type:"object",required:["name","sourceType","nasPath"],properties:{name:{type:"string"},sourceType:{type:"string",enum:["floot_github","floot","github","local"]},nasPath:{type:"string"},flootProjectId:{type:"string"},githubRepo:{type:"string"}},additionalProperties:false}, annotations:{readOnlyHint:false,destructiveHint:false} },
-    { name:"record_backup_status", description:"Record which backup layers are present for a project and date. This changes CodeHarborX metadata but does not delete files.", inputSchema:{type:"object",required:["projectId","backupDate"],properties:{projectId:{type:"integer"},backupDate:{type:"string"},sourceCode:{type:"boolean"},databaseDump:{type:"boolean"},filesAssets:{type:"boolean"},githubSnapshot:{type:"boolean"},buildsInstallers:{type:"boolean"},restoreRecord:{type:"boolean"}},additionalProperties:false}, annotations:{readOnlyHint:false,destructiveHint:false} }
+    { name: "codeharborx_status", description: "Read local CodeHarborX status.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "list_projects", description: "List projects in the standalone CodeHarborX project registry.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "backup_health", description: "Inspect local backup and restore-point health.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "scan_nas_backups", description: "Scan the configured CodeHarborX NAS backup root without modifying files.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "list_ai_agents", description: "List standalone CodeHarborX AI agent records.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "list_workflows", description: "List standalone CodeHarborX workflow records.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "list_local_models", description: "List Ollama models available on this computer.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true, destructiveHint: false } },
+    { name: "create_project", description: "Create a local CodeHarborX project record.", inputSchema: { type: "object", required: ["name"], properties: { name: { type: "string" }, sourceType: { type: "string" }, githubRepo: { type: "string" }, localPath: { type: "string" }, nasPath: { type: "string" } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } },
+    { name: "record_backup_status", description: "Record backup-layer status for a local project.", inputSchema: { type: "object", required: ["projectId"], properties: { projectId: { type: "string" }, backupDate: { type: "string" }, sourceCode: { type: "boolean" }, databaseDump: { type: "boolean" }, filesAssets: { type: "boolean" }, githubSnapshot: { type: "boolean" }, buildsInstallers: { type: "boolean" }, restoreRecord: { type: "boolean" } }, additionalProperties: false }, annotations: { readOnlyHint: false, destructiveHint: false } }
   ];
 }
 
 async function callMcpTool(name, args) {
   const config = await loadConfig();
-  if (name === "codeharborx_status") {
-    const ollama = await detectOllama();
-    return { agentVersion: AGENT_VERSION, deviceName: os.hostname(), nasRoot: config.nasRoot, nasReachable: await pathExists(config.nasRoot), localAiStatus: ollama.status, localModels: ollama.models, mcpUrl: "http://127.0.0.1:" + MCP_PORT + "/mcp" };
-  }
+  if (name === "codeharborx_status") return platformSnapshot();
   if (name === "scan_nas_backups") return scanBackups(config.nasRoot);
   if (name === "list_local_models") return detectOllama();
-  if (name === "list_projects") return agentControl(config, "list_projects", {});
-  if (name === "backup_health") return agentControl(config, "backup_health", {});
-  if (name === "list_ai_agents") return agentControl(config, "list_agents", {});
-  if (name === "list_workflows") return agentControl(config, "list_workflows", {});
-  if (name === "create_project") return agentControl(config, "create_project", args || {});
-  if (name === "record_backup_status") return agentControl(config, "record_backup", args || {});
+  if (name === "list_projects") return (await platformSnapshot()).data.projects;
+  if (name === "backup_health") {
+    const projects = (await platformSnapshot()).data.projects;
+    return projects.map((p) => ({ id: p.id, name: p.name, status: p.status, lastBackupAt: p.lastBackupAt, latestSnapshot: p.latestSnapshot }));
+  }
+  if (name === "list_ai_agents") return (await loadData()).agents;
+  if (name === "list_workflows") return (await loadData()).workflows;
+  if (name === "create_project") return createProject(args || {});
+  if (name === "record_backup_status") return recordBackup(args || {});
   throw new Error("Unknown MCP tool: " + name);
 }
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
-  res.writeHead(status, { "Content-Type":"application/json", "Content-Length":Buffer.byteLength(body), "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"content-type, authorization, mcp-session-id", "Access-Control-Allow-Methods":"GET,POST,OPTIONS" });
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Content-Length": Buffer.byteLength(body),
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "content-type, authorization, mcp-session-id",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+  });
   res.end(body);
 }
 
 function startMcpServer() {
   mcpServer = http.createServer(async (req, res) => {
-    if (req.method === "OPTIONS") { res.writeHead(204, { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"content-type, authorization, mcp-session-id", "Access-Control-Allow-Methods":"GET,POST,OPTIONS" }); return res.end(); }
-    if (req.url !== "/mcp") return sendJson(res, 404, { error:"Not found" });
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type, authorization, mcp-session-id", "Access-Control-Allow-Methods": "GET,POST,OPTIONS" });
+      return res.end();
+    }
+    if (req.url !== "/mcp") return sendJson(res, 404, { error: "Not found" });
     if (req.method === "GET") {
-      res.writeHead(200, { "Content-Type":"text/event-stream", "Cache-Control":"no-cache", "Connection":"keep-alive", "Access-Control-Allow-Origin":"*" });
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive", "Access-Control-Allow-Origin": "*" });
       res.write(": CodeHarborX MCP stream\n\n");
       const keepAlive = setInterval(() => { try { res.write(": keepalive\n\n"); } catch {} }, 15000);
       req.on("close", () => clearInterval(keepAlive));
       return;
     }
-    if (req.method !== "POST") return sendJson(res, 405, { error:"Method not allowed" });
+    if (req.method !== "POST") return sendJson(res, 405, { error: "Method not allowed" });
     let raw = "";
-    req.on("data", (chunk) => { raw += chunk; if (raw.length > 2_000_000) req.destroy(); });
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 2_000_000) req.destroy();
+    });
     req.on("end", async () => {
       let msg;
-      try { msg = JSON.parse(raw || "{}"); } catch { return sendJson(res, 400, { error:"Invalid JSON" }); }
+      try { msg = JSON.parse(raw || "{}"); } catch { return sendJson(res, 400, { error: "Invalid JSON" }); }
       const id = msg.id;
-      if (!id && String(msg.method || "").startsWith("notifications/")) { res.writeHead(202); return res.end(); }
+      if (!id && String(msg.method || "").startsWith("notifications/")) {
+        res.writeHead(202);
+        return res.end();
+      }
       try {
-        if (msg.method === "initialize") return sendJson(res, 200, { jsonrpc:"2.0", id, result:{ protocolVersion:(msg.params && msg.params.protocolVersion) || "2025-06-18", capabilities:{tools:{listChanged:false}}, serverInfo:{name:"CodeHarborX",version:AGENT_VERSION} } });
-        if (msg.method === "ping") return sendJson(res, 200, { jsonrpc:"2.0", id, result:{} });
-        if (msg.method === "tools/list") return sendJson(res, 200, { jsonrpc:"2.0", id, result:{ tools:toolDefinitions() } });
+        if (msg.method === "initialize") return sendJson(res, 200, { jsonrpc: "2.0", id, result: { protocolVersion: (msg.params && msg.params.protocolVersion) || "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "CodeHarborX", version: APP_VERSION } } });
+        if (msg.method === "ping") return sendJson(res, 200, { jsonrpc: "2.0", id, result: {} });
+        if (msg.method === "tools/list") return sendJson(res, 200, { jsonrpc: "2.0", id, result: { tools: toolDefinitions() } });
         if (msg.method === "tools/call") {
-          const name = msg.params && msg.params.name;
-          const args = msg.params && msg.params.arguments ? msg.params.arguments : {};
-          const result = await callMcpTool(name, args);
-          return sendJson(res, 200, { jsonrpc:"2.0", id, result:{ content:[{type:"text",text:JSON.stringify(result,null,2)}], isError:false } });
+          const result = await callMcpTool(msg.params?.name, msg.params?.arguments || {});
+          return sendJson(res, 200, { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }], isError: false } });
         }
-        return sendJson(res, 200, { jsonrpc:"2.0", id, error:{ code:-32601, message:"Method not found" } });
+        return sendJson(res, 200, { jsonrpc: "2.0", id, error: { code: -32601, message: "Method not found" } });
       } catch (error) {
-        return sendJson(res, 200, { jsonrpc:"2.0", id, result:{ content:[{type:"text",text:error instanceof Error ? error.message : String(error)}], isError:true } });
+        return sendJson(res, 200, { jsonrpc: "2.0", id, result: { content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }], isError: true } });
       }
     });
   });
@@ -237,15 +333,22 @@ function startMcpServer() {
   mcpServer.on("error", () => { mcpServer = null; });
 }
 
-function sendUpdateStatus(state, extra = {}) {
-  updateStatus = { state, ...extra };
-  for (const win of [mainWindow, localControlsWindow]) {
-    if (win && !win.isDestroyed()) win.webContents.send("update:status", updateStatus);
+function broadcast(channel, payload) {
+  for (const win of [mainWindow, localWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
   }
 }
 
+function sendUpdateStatus(state, extra = {}) {
+  updateStatus = { state, ...extra };
+  broadcast("update:status", updateStatus);
+}
+
 function setupAutoUpdater() {
-  if (!app.isPackaged) { sendUpdateStatus("dev", { message: "Updates are checked in packaged builds." }); return; }
+  if (!app.isPackaged) {
+    sendUpdateStatus("dev", { message: "Updates are checked in packaged builds." });
+    return;
+  }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("checking-for-update", () => sendUpdateStatus("checking", { message: "Checking GitHub for updates…" }));
@@ -253,87 +356,95 @@ function setupAutoUpdater() {
   autoUpdater.on("update-not-available", (info) => sendUpdateStatus("current", { version: info.version, message: "You are up to date." }));
   autoUpdater.on("download-progress", (p) => sendUpdateStatus("downloading", { version: updateStatus.version, percent: Math.round(p.percent), message: "Downloading update… " + Math.round(p.percent) + "%" }));
   autoUpdater.on("update-downloaded", (info) => sendUpdateStatus("ready", { version: info.version, message: "Update ready. Restart to install." }));
-  autoUpdater.on("error", (error) => sendUpdateStatus("error", { message: error && error.message ? error.message : String(error) }));
+  autoUpdater.on("error", (error) => sendUpdateStatus("error", { message: error?.message || String(error) }));
   setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 7000);
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
 }
 
-function createLocalControlsWindow() {
-  if (localControlsWindow && !localControlsWindow.isDestroyed()) {
-    if (localControlsWindow.isMinimized()) localControlsWindow.restore();
-    localControlsWindow.show();
-    localControlsWindow.focus();
+function windowOptions(title) {
+  return {
+    width: 1440,
+    height: 920,
+    minWidth: 980,
+    minHeight: 680,
+    backgroundColor: "#03101f",
+    title,
+    icon: path.join(__dirname, "..", "build", "icon.png"),
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  };
+}
+
+function createMainWindow() {
+  mainWindow = new BrowserWindow(windowOptions("CodeHarborX"));
+  mainWindow.removeMenu();
+  mainWindow.loadFile(path.join(__dirname, "app.html"));
+  mainWindow.on("closed", () => { mainWindow = null; });
+}
+
+function createLocalWindow() {
+  if (localWindow && !localWindow.isDestroyed()) {
+    if (localWindow.isMinimized()) localWindow.restore();
+    localWindow.show();
+    localWindow.focus();
     return;
   }
-
-  localControlsWindow = new BrowserWindow({
-    width: 1120, height: 790, minWidth: 900, minHeight: 660,
-    backgroundColor: "#03101f", title: "CodeHarborX Local Controls",
-    icon: path.join(__dirname, "..", "build", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false }
-  });
-  localControlsWindow.removeMenu();
-  localControlsWindow.loadFile(path.join(__dirname, "renderer.html"));
-  localControlsWindow.on("closed", () => { localControlsWindow = null; });
+  localWindow = new BrowserWindow({ ...windowOptions("CodeHarborX Local Controls"), width: 1180, height: 820 });
+  localWindow.removeMenu();
+  localWindow.loadFile(path.join(__dirname, "app.html"), { hash: "desktop-agents" });
+  localWindow.on("closed", () => { localWindow = null; });
 }
 
-async function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1440, height: 920, minWidth: 1000, minHeight: 700,
-    backgroundColor: "#03101f", title: "CodeHarborX",
-    icon: path.join(__dirname, "..", "build", "icon.png"),
-    webPreferences: { preload: path.join(__dirname, "online-preload.js"), contextIsolation: true, nodeIntegration: false }
-  });
-  mainWindow.removeMenu();
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
-    return { action: "deny" };
-  });
-
-  const config = await loadConfig();
-  const onlineUrl = (config.server || "https://codeharborx.floot.app").replace(/\/+$/, "");
-  try {
-    await mainWindow.loadURL(onlineUrl);
-  } catch {
-    await mainWindow.loadFile(path.join(__dirname, "offline.html"));
-  }
-}
-
-ipcMain.handle("config:get", async () => ensureConfig());
-ipcMain.handle("config:save", async (_event, config) => { await saveConfig(config); return { ok:true }; });
+ipcMain.handle("config:get", async () => loadConfig());
+ipcMain.handle("config:save", async (_event, input) => saveConfig(input));
+ipcMain.handle("platform:snapshot", async () => platformSnapshot());
+ipcMain.handle("platform:add-project", async (_event, input) => createProject(input));
+ipcMain.handle("platform:record-backup", async (_event, input) => recordBackup(input));
+ipcMain.handle("platform:add-activity", async (_event, message) => { await addActivity(String(message || "")); return { ok: true }; });
 ipcMain.handle("nas:test", async (_event, nasRoot) => ({ reachable: await pathExists(nasRoot) }));
-ipcMain.handle("agent:connect", async (_event, config) => {
-  if (!config.agentKey || !config.agentKey.trim()) throw new Error("Paste the pairing key from CodeHarborX first.");
-  await saveConfig(config);
-  return sendHeartbeat(config);
+ipcMain.handle("nas:scan", async (_event, nasRoot) => scanBackups(nasRoot));
+ipcMain.handle("nas:open", async (_event, nasRoot) => {
+  const error = await shell.openPath(nasRoot);
+  if (error) throw new Error(error);
+  return { ok: true };
 });
-ipcMain.handle("backups:scan", async (_event, nasRoot) => scanBackups(nasRoot));
-ipcMain.handle("nas:open", async (_event, nasRoot) => { const error = await shell.openPath(nasRoot); if (error) throw new Error(error); return {ok:true}; });
 ipcMain.handle("ollama:check", async () => detectOllama());
-ipcMain.handle("system:info", async () => ({ hostname:os.hostname(), platform:os.platform(), release:os.release(), arch:os.arch(), cpus:os.cpus().length, totalMemory:os.totalmem(), freeMemory:os.freemem(), mcpPort:MCP_PORT, mcpListening:Boolean(mcpServer), appVersion:app.getVersion(), updateStatus }));
-ipcMain.handle("update:check", async () => { if (!app.isPackaged) return { state:"dev" }; await autoUpdater.checkForUpdates(); return updateStatus; });
-ipcMain.handle("update:install", async () => { if (updateStatus.state !== "ready") return { ok:false, reason:"No downloaded update is ready." }; setImmediate(() => autoUpdater.quitAndInstall(false, true)); return { ok:true }; });
-ipcMain.handle("window:open-local-controls", async () => { createLocalControlsWindow(); return { ok:true }; });
+ipcMain.handle("window:open-local-controls", async () => { createLocalWindow(); return { ok: true }; });
+ipcMain.handle("system:open-data-folder", async () => {
+  const error = await shell.openPath(app.getPath("userData"));
+  if (error) throw new Error(error);
+  return { ok: true };
+});
+ipcMain.handle("system:info", async () => platformSnapshot());
+ipcMain.handle("update:check", async () => {
+  if (!app.isPackaged) return { state: "dev" };
+  await autoUpdater.checkForUpdates();
+  return updateStatus;
+});
+ipcMain.handle("update:install", async () => {
+  if (updateStatus.state !== "ready") return { ok: false, reason: "No downloaded update is ready." };
+  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  return { ok: true };
+});
 
 app.whenReady().then(async () => {
-  await ensureConfig();
+  await loadConfig();
+  await loadData();
   startMcpServer();
-  createWindow();
+  createMainWindow();
   setupAutoUpdater();
-  heartbeatTimer = setInterval(async () => {
-    const config = await loadConfig();
-    if (!config.agentKey) return;
+  statusTimer = setInterval(async () => {
     try {
-      const result = await sendHeartbeat(config);
-      if (localControlsWindow && !localControlsWindow.isDestroyed()) localControlsWindow.webContents.send("heartbeat:status", { ok:true, nasReachable:result.nasReachable, ollama:result.ollama, mcpListening:Boolean(mcpServer) });
-    } catch (error) {
-      if (localControlsWindow && !localControlsWindow.isDestroyed()) localControlsWindow.webContents.send("heartbeat:status", { ok:false, error:error instanceof Error ? error.message : String(error) });
-    }
+      broadcast("platform:status", await platformSnapshot());
+    } catch {}
   }, 60_000);
 });
 
 app.on("window-all-closed", () => {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (statusTimer) clearInterval(statusTimer);
   if (mcpServer) mcpServer.close();
   if (process.platform !== "darwin") app.quit();
 });
