@@ -1,0 +1,44 @@
+{
+  "name": "codeharborx-desktop-agent",
+  "version": "0.1.0",
+  "description": "CodeHarborX Windows desktop agent for local NAS backup operations.",
+  "main": "src/main.js",
+  "author": "CodeHarborX",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "38.2.1",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "com.codeharborx.agent",
+    "productName": "CodeHarborX Desktop Agent",
+    "artifactName": "CodeHarborX-Desktop-Agent-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CodeHarborX Desktop Agent"
+    }
+  }
+}
