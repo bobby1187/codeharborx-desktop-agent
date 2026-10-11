@@ -41,7 +41,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: CodeHarborX-Desktop-Agent-Windows-0.2.0
+          name: CodeHarborX-Desktop-Agent-Windows
           path: |
             dist/*.exe
             dist/*.blockmap
