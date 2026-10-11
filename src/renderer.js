@@ -4,100 +4,183 @@ const nasRoot = $("nasRoot");
 const agentKey = $("agentKey");
 const statusText = $("statusText");
 const statusDot = $("statusDot");
-const log = $("log");
+const dashboardLog = $("dashboardLog");
 const deviceText = $("deviceText");
+let currentTheme = "dark";
 
 function writeLog(message) {
-  const line = `${new Date().toLocaleTimeString()}  ${message}`;
-  log.textContent = `${line}\n${log.textContent}`.trim();
+  const line = new Date().toLocaleTimeString() + "  " + message;
+  dashboardLog.textContent = (line + "\n" + dashboardLog.textContent).trim();
 }
-
-function setStatus(text, mode = "warn") {
+function setStatus(text, mode) {
   statusText.textContent = text;
-  statusDot.className = `dot ${mode}`;
+  statusDot.className = "dot " + (mode || "warn");
+  $("sideStatus").textContent = text;
+  $("metricCloud").textContent = text;
 }
-
-function currentConfig(base = {}) {
-  return {
-    ...base,
+async function saveCurrentConfig() {
+  const old = await window.codeHarborX.getConfig();
+  await window.codeHarborX.saveConfig({
+    ...old,
     server: server.value.trim(),
     nasRoot: nasRoot.value.trim(),
-    agentKey: agentKey.value.trim()
-  };
+    agentKey: agentKey.value.trim(),
+    theme: currentTheme
+  });
 }
-
-(async () => {
-  const config = await window.codeHarborX.getConfig();
-  server.value = config.server || "https://codeharborx.floot.app";
-  nasRoot.value = config.nasRoot || "\\\\10.0.0.132\\personal_folder\\Project_Backups";
-  agentKey.value = config.agentKey || "";
-  deviceText.textContent = `Device ID: ${config.deviceId}`;
-  writeLog("Ready. Create a pairing key in CodeHarborX online, paste it here, then Test NAS and Connect.");
-})();
-
-$("testNas").addEventListener("click", async () => {
+function applyTheme(theme) {
+  currentTheme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = currentTheme;
+  $("themeDark").classList.toggle("active", currentTheme === "dark");
+  $("themeLight").classList.toggle("active", currentTheme === "light");
+}
+function renderBackupResults(items) {
+  $("backupResults").innerHTML = "";
+  for (const item of items) {
+    const el = document.createElement("div");
+    el.className = "result";
+    el.innerHTML = "<b>" + item.category + "</b><span>" + (item.exists ? item.projects + " project folder(s) · " + item.files + " item(s)" : "Folder missing") + "</span>";
+    $("backupResults").appendChild(el);
+  }
+}
+function renderModels(result) {
+  const state = $("ollamaState");
+  const list = $("modelList");
+  list.innerHTML = "";
+  if (result.status === "online") {
+    state.className = "state-banner good";
+    state.textContent = "Ollama is online · " + result.models.length + " local model(s) detected";
+    $("metricAi").textContent = "Online";
+    $("metricAiDetail").textContent = result.models.length + " model(s) available";
+    for (const model of result.models) {
+      const el = document.createElement("div");
+      el.className = "model-item";
+      el.textContent = model;
+      list.appendChild(el);
+    }
+  } else {
+    state.className = "state-banner bad";
+    state.textContent = "Ollama is not reachable on 127.0.0.1:11434";
+    $("metricAi").textContent = "Offline";
+    $("metricAiDetail").textContent = "No local runtime detected";
+  }
+}
+async function refreshSystem() {
+  const info = await window.codeHarborX.systemInfo();
+  $("mcpState").textContent = info.mcpListening ? "Listening" : "Offline";
+  $("metricMcp").textContent = info.mcpListening ? "Listening" : "Offline";
+  $("mcpUrl").textContent = "http://127.0.0.1:" + info.mcpPort + "/mcp";
+  const rows = [
+    ["Device", info.hostname],["Platform", info.platform + " " + info.release],["Architecture", info.arch],
+    ["CPU threads", String(info.cpus)],["Memory", (info.totalMemory/1073741824).toFixed(1) + " GB"],["MCP port", String(info.mcpPort)]
+  ];
+  $("systemGrid").innerHTML = "";
+  for (const row of rows) {
+    const el = document.createElement("div");
+    el.className = "system-item";
+    el.innerHTML = "<span>" + row[0] + "</span><b>" + row[1] + "</b>";
+    $("systemGrid").appendChild(el);
+  }
+}
+async function testNas() {
   try {
-    setStatus("Testing NAS…");
     const result = await window.codeHarborX.testNas(nasRoot.value.trim());
     if (result.reachable) {
-      setStatus("NAS reachable", "ok");
-      writeLog(`NAS reachable: ${nasRoot.value.trim()}`);
-    } else {
-      setStatus("NAS unreachable", "bad");
-      writeLog("NAS is not reachable. Make sure Windows can open the UGREEN share in File Explorer.");
+      $("metricNas").textContent = "Reachable";
+      writeLog("NAS reachable: " + nasRoot.value.trim());
+      return true;
     }
+    $("metricNas").textContent = "Unreachable";
+    writeLog("NAS is not reachable. Make sure Windows can open the UGREEN share.");
+    return false;
   } catch (error) {
-    setStatus("NAS test failed", "bad");
-    writeLog(error.message || String(error));
+    $("metricNas").textContent = "Error";
+    writeLog("NAS test failed: " + (error.message || error));
+    return false;
   }
-});
-
-$("connect").addEventListener("click", async () => {
-  const button = $("connect");
-  button.disabled = true;
+}
+async function connectAgent() {
   try {
-    const oldConfig = await window.codeHarborX.getConfig();
-    const config = currentConfig(oldConfig);
-    setStatus("Connecting…");
-    const result = await window.codeHarborX.connect(config);
+    await saveCurrentConfig();
+    setStatus("Connecting…", "warn");
+    const cfg = await window.codeHarborX.getConfig();
+    const result = await window.codeHarborX.connect(cfg);
     if (result.nasReachable) {
       setStatus("Online · NAS reachable", "ok");
+      $("metricNas").textContent = "Reachable";
       writeLog("Connected to CodeHarborX. NAS is reachable.");
     } else {
-      setStatus("Online · NAS unreachable", "warn");
+      setStatus("Online · NAS issue", "warn");
+      $("metricNas").textContent = "Unreachable";
       writeLog("Connected to CodeHarborX, but the NAS is not reachable.");
     }
+    renderModels(result.ollama);
   } catch (error) {
     setStatus("Connection failed", "bad");
-    writeLog(`Connection failed: ${error.message || error}`);
-  } finally {
-    button.disabled = false;
+    writeLog("Connection failed: " + (error.message || error));
   }
-});
-
-$("scan").addEventListener("click", async () => {
+}
+async function scanBackups() {
   try {
-    const results = await window.codeHarborX.scanBackups(nasRoot.value.trim());
-    writeLog("Backup scan complete:");
-    for (const item of results) {
-      writeLog(`${item.category}: ${item.exists ? `${item.projects} project folder(s)` : "missing"}`);
-    }
+    const items = await window.codeHarborX.scanBackups(nasRoot.value.trim());
+    renderBackupResults(items);
+    writeLog("Backup scan completed across " + items.length + " categories.");
   } catch (error) {
-    writeLog(`Backup scan failed: ${error.message || error}`);
+    writeLog("Backup scan failed: " + (error.message || error));
   }
+}
+async function checkOllama() {
+  const result = await window.codeHarborX.checkOllama();
+  renderModels(result);
+  writeLog("Local AI check: " + result.status + " · " + result.models.length + " model(s).");
+}
+
+document.querySelectorAll(".nav-item").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(".section").forEach((x) => x.classList.remove("active"));
+    button.classList.add("active");
+    $(button.dataset.section).classList.add("active");
+    $("pageTitle").textContent = button.textContent;
+  });
 });
 
+$("themeDark").addEventListener("click", async () => { applyTheme("dark"); await saveCurrentConfig(); });
+$("themeLight").addEventListener("click", async () => { applyTheme("light"); await saveCurrentConfig(); });
+$("testNas").addEventListener("click", testNas);
+$("quickTestNas").addEventListener("click", testNas);
+$("connect").addEventListener("click", connectAgent);
+$("quickConnect").addEventListener("click", connectAgent);
+$("scan").addEventListener("click", scanBackups);
+$("quickScan").addEventListener("click", scanBackups);
+$("checkOllama").addEventListener("click", checkOllama);
+$("quickOllama").addEventListener("click", checkOllama);
 $("openNas").addEventListener("click", async () => {
-  try {
-    await window.codeHarborX.openNas(nasRoot.value.trim());
-    writeLog("Opened NAS backup root.");
-  } catch (error) {
-    writeLog(`Could not open NAS: ${error.message || error}`);
-  }
+  try { await window.codeHarborX.openNas(nasRoot.value.trim()); writeLog("Opened NAS backup root."); }
+  catch (error) { writeLog("Could not open NAS: " + (error.message || error)); }
 });
 
 window.codeHarborX.onHeartbeat((status) => {
   if (status.ok && status.nasReachable) setStatus("Online · NAS reachable", "ok");
-  else if (status.ok) setStatus("Online · NAS unreachable", "warn");
+  else if (status.ok) setStatus("Online · NAS issue", "warn");
   else setStatus("Offline", "bad");
+  if (status.ollama) renderModels(status.ollama);
+  $("metricMcp").textContent = status.mcpListening ? "Listening" : "Offline";
 });
+
+(async () => {
+  const config = await window.codeHarborX.getConfig();
+  server.value = config.server || "https://codeharborx.floot.app";
+  nasRoot.value = config.nasRoot || "\\10.0.0.132\personal_folder\Project_Backups";
+  agentKey.value = config.agentKey || "";
+  deviceText.textContent = "Device ID: " + config.deviceId;
+  applyTheme(config.theme || "dark");
+  await refreshSystem();
+  await checkOllama();
+  if (config.agentKey) {
+    writeLog("Saved pairing detected. Click Connect to refresh the CodeHarborX session.");
+    $("metricCloud").textContent = "Paired";
+  } else {
+    writeLog("Create a pairing key in CodeHarborX → Desktop Agents, paste it here, then connect.");
+  }
+})();
