@@ -1,6 +1,6 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "CodeHarborX — standalone local desktop command center for projects, NAS backups, local AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",
@@ -8,14 +8,12 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist:win": "npm run prepare:icon && electron-builder --win nsis --publish never",
-    "release:win": "npm run prepare:icon && electron-builder --win nsis --publish always",
-    "prepare:icon": "node scripts/generate-icon.js"
+    "dist:win": "electron-builder --win nsis --publish never",
+    "release:win": "electron-builder --win nsis --publish always"
   },
   "devDependencies": {
     "electron": "38.2.1",
-    "electron-builder": "26.0.12",
-    "sharp": "0.34.4"
+    "electron-builder": "26.0.12"
   },
   "build": {
     "appId": "com.codeharborx.agent",
@@ -28,8 +26,7 @@
     "files": [
       "src/**/*",
       "build/icon.png",
-      "build/icon.svg",
-      "scripts/generate-icon.js",
+      "build/logo.png",
       "package.json"
     ],
     "win": {
