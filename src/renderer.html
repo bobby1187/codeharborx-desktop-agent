@@ -125,7 +125,19 @@
       <section id="system" class="section">
         <article class="card wide">
           <div class="card-head"><div><span>DEVICE</span><h3>ROG system information</h3></div></div>
-          <div id="systemGrid" class="system-grid"></div>
+          <div class="card" style="margin-bottom:12px">
+  <div class="card-head"><div><span>UPDATES</span><h3>CodeHarborX Update Center</h3><p>Future releases download automatically from GitHub. Restart only when an update is ready.</p></div></div>
+  <div class="system-grid">
+    <div class="system-item"><span>Current version</span><b id="currentVersion">—</b></div>
+    <div class="system-item"><span>Update status</span><b id="updateStatus">Automatic updates enabled</b></div>
+    <div class="system-item"><span>Channel</span><b>Stable</b></div>
+  </div>
+  <div class="actions">
+    <button id="checkUpdates">Check now</button>
+    <button id="installUpdate" class="primary" style="display:none">Install & Restart</button>
+  </div>
+</div>
+<div id="systemGrid" class="system-grid"></div>
         </article>
       </section>
     </main>
