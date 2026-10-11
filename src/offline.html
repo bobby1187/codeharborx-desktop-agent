@@ -1,0 +1,23 @@
+<!doctype html>
+<html data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CodeHarborX Offline</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#03101f;color:#eef7ff;font-family:Segoe UI,system-ui,sans-serif}.card{width:min(620px,calc(100vw - 40px));padding:32px;border:1px solid #173a60;border-radius:18px;background:#081d34;box-shadow:0 20px 60px rgba(0,0,0,.35)}h1{margin:0 0 10px;font-size:30px}p{color:#8ca9c9;line-height:1.6}button{margin-top:12px;padding:11px 16px;border:1px solid #2c79be;border-radius:10px;background:#0874f9;color:white;font-weight:700;cursor:pointer}.small{margin-top:14px;font-size:12px;color:#6f8eaf}
+</style>
+</head>
+<body>
+<div class="card">
+  <div style="font-size:11px;letter-spacing:.14em;color:#3aa3ff;font-weight:700">CODEHARBORX DESKTOP</div>
+  <h1>Online command center is unavailable.</h1>
+  <p>Your local Desktop Agent services can still run. Open Local Controls to manage the NAS, local AI, MCP bridge, pairing, and updater while the online interface is unreachable.</p>
+  <button id="local">Open Local Controls</button>
+  <div class="small">Reconnect to the internet and restart CodeHarborX to return to the full command center.</div>
+</div>
+<script>
+document.getElementById("local").addEventListener("click",()=>window.codeHarborXDesktop.openLocalControls());
+</script>
+</body>
+</html>
