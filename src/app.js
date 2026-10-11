@@ -1,5 +1,5 @@
 const NAV = [
-  ["dashboard","Dashboard","⌂"],["command-center","Command Center","⌘"],["projects","Project Studio","</>"],
+  ["dashboard","Dashboard","⌂"],["command-center","Command Center","⌘"],["projects","Project Studio","</>"],["builder","Builder","⚒"],
   ["ai-agents","AI Agents","✦"],["prompt-lab","Prompt Lab","✎"],["workflows","Workflows","⇄"],
   ["desktop-agents","Desktop Agents","▣"],["local-runner","Local Runner","◉"],["github-sync","GitHub Sync","◈"],
   ["backups","Backup Center","▤"],["packaging","App Packaging","▰"],["deployments","Deployments","↗"],
@@ -8,6 +8,7 @@ const NAV = [
 ];
 
 let snapshot = null;
+let builderState = { root:"", projects:[] };
 let route = (location.hash || "#dashboard").slice(1);
 const $ = (selector) => document.querySelector(selector);
 const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
@@ -223,7 +224,7 @@ function render() {
     return;
   }
   const map = {
-    "dashboard":dashboardPage,"command-center":commandPage,"projects":projectsPage,"ai-agents":agentsPage,
+    "dashboard":dashboardPage,"command-center":commandPage,"projects":projectsPage,"builder":()=>window.CodeHarborXBuilder.page(builderState,snapshot),"ai-agents":agentsPage,
     "workflows":workflowsPage,"desktop-agents":desktopPage,"local-runner":localRunnerPage,"github-sync":githubPage,
     "backups":backupsPage,"analytics":analyticsPage,"extensions":extensionsPage,"team":teamPage,
     "ai-control":aiControlPage,"settings":settingsPage
@@ -277,6 +278,17 @@ function bindActions() {
     await refresh();
     showInfo("Settings","Settings saved locally.");
   };
+
+  if (route === "builder" && window.CodeHarborXBuilder) {
+    window.CodeHarborXBuilder.bind({
+      rerender: render,
+      showInfo,
+      showModal,
+      closeModal,
+      navigate,
+      setState: (state) => { builderState = state; }
+    });
+  }
 }
 
 function openProjectModal() {
@@ -347,7 +359,9 @@ window.addEventListener("hashchange",()=>{
 });
 
 async function refresh() {
-  snapshot = await window.codeHarborX.getSnapshot();
+  const results = await Promise.all([window.codeHarborX.getSnapshot(), window.codeHarborX.builderStatus()]);
+  snapshot = results[0];
+  builderState = results[1];
   document.documentElement.dataset.theme = snapshot.config.theme;
   $("#versionPill").textContent = "v" + snapshot.appVersion;
   $("#harborStatus").textContent = snapshot.nasReachable ? "Harbor online" : "Harbor local";
