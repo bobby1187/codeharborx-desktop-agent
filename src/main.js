@@ -5,12 +5,14 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const http = require("http");
+const { autoUpdater } = require("electron-updater");
 
 const AGENT_VERSION = "0.2.0";
 const MCP_PORT = 48321;
 let mainWindow = null;
 let heartbeatTimer = null;
 let mcpServer = null;
+let updateStatus = { state: "idle", version: null, message: "Automatic updates enabled" };
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
@@ -234,6 +236,25 @@ function startMcpServer() {
   mcpServer.on("error", () => { mcpServer = null; });
 }
 
+function sendUpdateStatus(state, extra = {}) {
+  updateStatus = { state, ...extra };
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("update:status", updateStatus);
+}
+
+function setupAutoUpdater() {
+  if (!app.isPackaged) { sendUpdateStatus("dev", { message: "Updates are checked in packaged builds." }); return; }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("checking-for-update", () => sendUpdateStatus("checking", { message: "Checking GitHub for updates…" }));
+  autoUpdater.on("update-available", (info) => sendUpdateStatus("downloading", { version: info.version, message: "Downloading CodeHarborX " + info.version + "…" }));
+  autoUpdater.on("update-not-available", (info) => sendUpdateStatus("current", { version: info.version, message: "You are up to date." }));
+  autoUpdater.on("download-progress", (p) => sendUpdateStatus("downloading", { version: updateStatus.version, percent: Math.round(p.percent), message: "Downloading update… " + Math.round(p.percent) + "%" }));
+  autoUpdater.on("update-downloaded", (info) => sendUpdateStatus("ready", { version: info.version, message: "Update ready. Restart to install." }));
+  autoUpdater.on("error", (error) => sendUpdateStatus("error", { message: error && error.message ? error.message : String(error) }));
+  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 7000);
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1120, height: 790, minWidth: 900, minHeight: 660,
@@ -256,12 +277,15 @@ ipcMain.handle("agent:connect", async (_event, config) => {
 ipcMain.handle("backups:scan", async (_event, nasRoot) => scanBackups(nasRoot));
 ipcMain.handle("nas:open", async (_event, nasRoot) => { const error = await shell.openPath(nasRoot); if (error) throw new Error(error); return {ok:true}; });
 ipcMain.handle("ollama:check", async () => detectOllama());
-ipcMain.handle("system:info", async () => ({ hostname:os.hostname(), platform:os.platform(), release:os.release(), arch:os.arch(), cpus:os.cpus().length, totalMemory:os.totalmem(), freeMemory:os.freemem(), mcpPort:MCP_PORT, mcpListening:Boolean(mcpServer) }));
+ipcMain.handle("system:info", async () => ({ hostname:os.hostname(), platform:os.platform(), release:os.release(), arch:os.arch(), cpus:os.cpus().length, totalMemory:os.totalmem(), freeMemory:os.freemem(), mcpPort:MCP_PORT, mcpListening:Boolean(mcpServer), appVersion:app.getVersion(), updateStatus }));
+ipcMain.handle("update:check", async () => { if (!app.isPackaged) return { state:"dev" }; await autoUpdater.checkForUpdates(); return updateStatus; });
+ipcMain.handle("update:install", async () => { if (updateStatus.state !== "ready") return { ok:false, reason:"No downloaded update is ready." }; setImmediate(() => autoUpdater.quitAndInstall(false, true)); return { ok:true }; });
 
 app.whenReady().then(async () => {
   await ensureConfig();
   startMcpServer();
   createWindow();
+  setupAutoUpdater();
   heartbeatTimer = setInterval(async () => {
     const config = await loadConfig();
     if (!config.agentKey) return;
