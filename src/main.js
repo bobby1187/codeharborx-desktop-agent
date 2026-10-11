@@ -7,12 +7,12 @@ const crypto = require("crypto");
 const http = require("http");
 const { autoUpdater } = require("electron-updater");
 
-const AGENT_VERSION = "0.2.0";
+const AGENT_VERSION = app.getVersion();
 const MCP_PORT = 48321;
 let mainWindow = null;
 let heartbeatTimer = null;
 let mcpServer = null;
-let updateStatus = { state: "idle", version: null, message: "Automatic updates enabled" };
+let updateStatus = { state: "idle", version: null, message: "Automatic GitHub updates enabled" };
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
