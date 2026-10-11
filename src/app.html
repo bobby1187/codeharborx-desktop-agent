@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CodeHarborX</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <button class="brand" data-route="dashboard">
+        <img src="../build/icon.png" alt="">
+        <div><b><span>Code</span>Harbor<i>X</i></b><small>DEVELOPMENT HARBOR</small></div>
+      </button>
+      <nav id="nav"></nav>
+      <div class="side-bottom">
+        <button class="nav-button" data-route="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+        <div class="ownership"><span class="pulse"></span><div><b>Local infrastructure</b><small>Standalone · Private · Yours</small></div></div>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div class="search"><span>⌕</span><input id="globalSearch" placeholder="Search projects, agents, workflows…"><kbd>Ctrl K</kbd></div>
+        <div class="top-actions">
+          <div class="status-pill"><span></span><b id="harborStatus">Harbor online</b></div>
+          <button id="themeToggle" class="icon-button" title="Toggle theme">◐</button>
+          <div class="version-pill" id="versionPill">v—</div>
+        </div>
+      </header>
+
+      <main id="main" class="main"></main>
+    </section>
+  </div>
+
+  <div id="modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <section class="modal-card">
+      <button class="modal-close" data-close-modal>×</button>
+      <div id="modalBody"></div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
