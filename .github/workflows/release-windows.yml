@@ -21,13 +21,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Fetch official CodeHarborX icon
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path build | Out-Null
-          Invoke-WebRequest "https://codeharborx.floot.app/_cdn/static/9a83e5b8-1bf8-4b6e-9c29-640716acdcc2-codeharborx-icon-512.png" -OutFile "build/icon.png"
-          Copy-Item "build/icon.png" "src/icon.png" -Force
-
       - name: Install dependencies
         run: npm install
 
