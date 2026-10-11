@@ -1,45 +1,46 @@
-# CodeHarborX Desktop Agent
+# CodeHarborX
 
-The official Windows bridge for CodeHarborX.
+Standalone Windows development control center.
 
-## Version 0.3.0
+## Standalone architecture
 
-Version 0.3.0 turns the Windows app into the full CodeHarborX desktop shell: the main window opens the same live CodeHarborX command center as the web app while the native Desktop Agent continues running underneath for NAS, local AI, MCP, pairing, heartbeat, and automatic updates.
+CodeHarborX runs from the installed Electron application. The main interface is packaged with the installer and loads from local files rather than from a hosted web application.
+
+Local application data is stored under the Windows Electron user-data directory. The configured UGREEN NAS is used as backup storage only.
 
 ### Included
 
-- Official CodeHarborX application icon and installer branding
-- Premium light and dark themes
-- Full online CodeHarborX command center in the primary desktop window
-- Native Local Controls window for Connection, NAS Backup, Local AI, MCP Bridge and System
-- Secure Windows storage for the CodeHarborX pairing key when Electron safeStorage is available
-- UGREEN NAS connectivity and backup-folder scanning
+- Local CodeHarborX command-center interface
+- Dashboard and Command Center
+- Project Studio with persistent local project records
+- AI Agents and workflow records stored locally
+- UGREEN NAS connectivity and backup scanning
 - Ollama discovery and local-model listing
-- Local MCP server on `http://127.0.0.1:48321/mcp`
-- MCP read tools for projects, backup health, agents, workflows, NAS scan and local models
-- MCP write tools for creating project registry records and recording backup status
-- No destructive/delete MCP tools in v0.2
-- Heartbeat reporting for NAS, local AI and MCP status
+- Backup Center and restore-layer tracking
+- GitHub repository metadata tracking
+- App Packaging and deployment workspace
+- Analytics, Knowledge Base, Asset Library, Extensions, and Team views
+- Local MCP server at `http://127.0.0.1:48321/mcp`
+- MCP tools for projects, backup health, agents, workflows, NAS scans, and local models
+- Light and dark themes
+- Automatic application updates through GitHub Releases
 
-## ChatGPT / MCP
+## External services
 
-The local MCP endpoint is intentionally bound to `127.0.0.1`. It is not exposed directly to the internet.
-
-To make it available to supported ChatGPT environments, connect the local MCP through OpenAI Secure MCP Tunnel or another approved MCP client workflow. The NAS itself is never exposed as an MCP server.
+The installed CodeHarborX application does not require a hosted CodeHarborX runtime. GitHub is used for source control and application releases/updates. Ollama is accessed locally at `127.0.0.1:11434` when installed. The NAS is accessed directly through the configured Windows network path.
 
 ## Windows installer
 
-GitHub Actions produces:
+GitHub Actions builds the Windows NSIS installer entirely from files stored in this repository. Branding assets are generated from the repository's local `build/icon.svg`; the build does not download UI or branding assets from another platform.
 
-`CodeHarborX-Desktop-Agent-Setup-0.3.0.exe`
+## Application data
 
-## Signing
-
-The development installer is currently unsigned. Windows may show Unknown Publisher / SmartScreen until a production code-signing certificate is configured.
-
+Project records, settings, workflows, agent records, extension state, and activity history are stored in CodeHarborX's local Windows application-data directory. Use **Settings → Open local data folder** to inspect that location.
 
 ## Automatic updates
 
-Version 0.2.1 introduced the automatic updater. Version 0.3.0 keeps that updater and changes the primary Windows experience to the full CodeHarborX web command center, with native Local Controls available from the desktop-only navigation entry. It checks the official GitHub Releases feed on startup and every four hours. New versions download automatically; when ready, the app can install them with **Install & Restart**. Downloaded updates also install when the app exits.
+Packaged builds check the official GitHub Releases feed after startup and every four hours. New versions download automatically. When an update is ready, CodeHarborX shows **Install & Restart**; downloaded updates can also install when the application exits.
 
-The release workflow publishes the installer, blockmap, and `latest.yml` metadata required by Electron's differential updater.
+## Signing
+
+Development installers are currently unsigned. Windows can show Unknown Publisher / SmartScreen until production code signing is configured.
