@@ -2,15 +2,16 @@
 
 The official Windows bridge for CodeHarborX.
 
-## Version 0.2.2
+## Version 0.3.0
 
-This release upgrades the original proof-of-concept into a branded local control application.
+Version 0.3.0 turns the Windows app into the full CodeHarborX desktop shell: the main window opens the same live CodeHarborX command center as the web app while the native Desktop Agent continues running underneath for NAS, local AI, MCP, pairing, heartbeat, and automatic updates.
 
 ### Included
 
 - Official CodeHarborX application icon and installer branding
 - Premium light and dark themes
-- Dashboard, Connection, NAS Backup, Local AI, MCP Bridge and System views
+- Full online CodeHarborX command center in the primary desktop window
+- Native Local Controls window for Connection, NAS Backup, Local AI, MCP Bridge and System
 - Secure Windows storage for the CodeHarborX pairing key when Electron safeStorage is available
 - UGREEN NAS connectivity and backup-folder scanning
 - Ollama discovery and local-model listing
@@ -30,7 +31,7 @@ To make it available to supported ChatGPT environments, connect the local MCP th
 
 GitHub Actions produces:
 
-`CodeHarborX-Desktop-Agent-Setup-0.2.2.exe`
+`CodeHarborX-Desktop-Agent-Setup-0.3.0.exe`
 
 ## Signing
 
@@ -39,6 +40,6 @@ The development installer is currently unsigned. Windows may show Unknown Publis
 
 ## Automatic updates
 
-Version 0.2.1 introduced the automatic updater. Version 0.2.2 validates the end-to-end GitHub Releases update path and keeps future version reporting synchronized with the installed app package. It checks the official GitHub Releases feed on startup and every four hours. New versions download automatically; when ready, the app can install them with **Install & Restart**. Downloaded updates also install when the app exits.
+Version 0.2.1 introduced the automatic updater. Version 0.3.0 keeps that updater and changes the primary Windows experience to the full CodeHarborX web command center, with native Local Controls available from the desktop-only navigation entry. It checks the official GitHub Releases feed on startup and every four hours. New versions download automatically; when ready, the app can install them with **Install & Restart**. Downloaded updates also install when the app exits.
 
 The release workflow publishes the installer, blockmap, and `latest.yml` metadata required by Electron's differential updater.
