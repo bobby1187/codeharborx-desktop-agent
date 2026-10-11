@@ -152,11 +152,23 @@ async function detectOllama() {
 
 async function scanBackups(nasRoot) {
   if (!(await pathExists(nasRoot))) throw new Error("NAS path is not reachable.");
-  const categories = ["Floot_Exports", "Database_Backups", "Files_and_Assets", "GitHub_Snapshots", "Builds_and_Installers", "Restore_Points"];
+  const categories = [
+    { category: "Source_Exports", folders: ["Source_Exports", "Floot_Exports"] },
+    { category: "Database_Backups", folders: ["Database_Backups"] },
+    { category: "Files_and_Assets", folders: ["Files_and_Assets"] },
+    { category: "GitHub_Snapshots", folders: ["GitHub_Snapshots"] },
+    { category: "Builds_and_Installers", folders: ["Builds_and_Installers"] },
+    { category: "Restore_Points", folders: ["Restore_Points"] }
+  ];
   const results = [];
-  for (const category of categories) {
-    const categoryPath = path.join(nasRoot, category);
-    const exists = await pathExists(categoryPath);
+  for (const item of categories) {
+    const category = item.category;
+    let categoryPath = path.join(nasRoot, item.folders[0]);
+    let exists = await pathExists(categoryPath);
+    if (!exists && item.folders.length > 1) {
+      const legacyPath = path.join(nasRoot, item.folders[1]);
+      if (await pathExists(legacyPath)) { categoryPath = legacyPath; exists = true; }
+    }
     if (!exists) {
       results.push({ category, exists: false, projects: 0, files: 0 });
       continue;
