@@ -10,6 +10,7 @@ const { autoUpdater } = require("electron-updater");
 const AGENT_VERSION = app.getVersion();
 const MCP_PORT = 48321;
 let mainWindow = null;
+let localControlsWindow = null;
 let heartbeatTimer = null;
 let mcpServer = null;
 let updateStatus = { state: "idle", version: null, message: "Automatic GitHub updates enabled" };
@@ -238,7 +239,9 @@ function startMcpServer() {
 
 function sendUpdateStatus(state, extra = {}) {
   updateStatus = { state, ...extra };
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("update:status", updateStatus);
+  for (const win of [mainWindow, localControlsWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send("update:status", updateStatus);
+  }
 }
 
 function setupAutoUpdater() {
@@ -255,15 +258,45 @@ function setupAutoUpdater() {
   setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 4 * 60 * 60 * 1000);
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+function createLocalControlsWindow() {
+  if (localControlsWindow && !localControlsWindow.isDestroyed()) {
+    if (localControlsWindow.isMinimized()) localControlsWindow.restore();
+    localControlsWindow.show();
+    localControlsWindow.focus();
+    return;
+  }
+
+  localControlsWindow = new BrowserWindow({
     width: 1120, height: 790, minWidth: 900, minHeight: 660,
-    backgroundColor: "#03101f", title: "CodeHarborX Desktop Agent",
-    icon: path.join(__dirname, "icon.png"),
+    backgroundColor: "#03101f", title: "CodeHarborX Local Controls",
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false }
   });
+  localControlsWindow.removeMenu();
+  localControlsWindow.loadFile(path.join(__dirname, "renderer.html"));
+  localControlsWindow.on("closed", () => { localControlsWindow = null; });
+}
+
+async function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1440, height: 920, minWidth: 1000, minHeight: 700,
+    backgroundColor: "#03101f", title: "CodeHarborX",
+    icon: path.join(__dirname, "..", "build", "icon.png"),
+    webPreferences: { preload: path.join(__dirname, "online-preload.js"), contextIsolation: true, nodeIntegration: false }
+  });
   mainWindow.removeMenu();
-  mainWindow.loadFile(path.join(__dirname, "renderer.html"));
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  const config = await loadConfig();
+  const onlineUrl = (config.server || "https://codeharborx.floot.app").replace(/\/+$/, "");
+  try {
+    await mainWindow.loadURL(onlineUrl);
+  } catch {
+    await mainWindow.loadFile(path.join(__dirname, "offline.html"));
+  }
 }
 
 ipcMain.handle("config:get", async () => ensureConfig());
@@ -280,6 +313,7 @@ ipcMain.handle("ollama:check", async () => detectOllama());
 ipcMain.handle("system:info", async () => ({ hostname:os.hostname(), platform:os.platform(), release:os.release(), arch:os.arch(), cpus:os.cpus().length, totalMemory:os.totalmem(), freeMemory:os.freemem(), mcpPort:MCP_PORT, mcpListening:Boolean(mcpServer), appVersion:app.getVersion(), updateStatus }));
 ipcMain.handle("update:check", async () => { if (!app.isPackaged) return { state:"dev" }; await autoUpdater.checkForUpdates(); return updateStatus; });
 ipcMain.handle("update:install", async () => { if (updateStatus.state !== "ready") return { ok:false, reason:"No downloaded update is ready." }; setImmediate(() => autoUpdater.quitAndInstall(false, true)); return { ok:true }; });
+ipcMain.handle("window:open-local-controls", async () => { createLocalControlsWindow(); return { ok:true }; });
 
 app.whenReady().then(async () => {
   await ensureConfig();
@@ -291,9 +325,9 @@ app.whenReady().then(async () => {
     if (!config.agentKey) return;
     try {
       const result = await sendHeartbeat(config);
-      if (mainWindow) mainWindow.webContents.send("heartbeat:status", { ok:true, nasReachable:result.nasReachable, ollama:result.ollama, mcpListening:Boolean(mcpServer) });
+      if (localControlsWindow && !localControlsWindow.isDestroyed()) localControlsWindow.webContents.send("heartbeat:status", { ok:true, nasReachable:result.nasReachable, ollama:result.ollama, mcpListening:Boolean(mcpServer) });
     } catch (error) {
-      if (mainWindow) mainWindow.webContents.send("heartbeat:status", { ok:false, error:error instanceof Error ? error.message : String(error) });
+      if (localControlsWindow && !localControlsWindow.isDestroyed()) localControlsWindow.webContents.send("heartbeat:status", { ok:false, error:error instanceof Error ? error.message : String(error) });
     }
   }, 60_000);
 });
