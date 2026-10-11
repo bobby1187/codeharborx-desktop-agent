@@ -1,6 +1,6 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "CodeHarborX Desktop Agent — local NAS, AI runtime, MCP bridge, backup and packaging control.",
   "main": "src/main.js",
   "author": "CodeHarborX",
