@@ -1,6 +1,6 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "CodeHarborX — standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",
@@ -55,7 +55,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CodeHarborX"
+      "shortcutName": "CodeHarborX",
+      "include": "build/installer.nsh",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp"
     },
     "publish": [
       {

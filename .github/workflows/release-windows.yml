@@ -30,6 +30,14 @@ jobs:
           npm test
           npx electron test/electron-smoke.js
 
+      - name: Save light and dark dialog previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeharborx-dialog-previews
+          path: ../../outputs/CodeHarborX-*.png
+          if-no-files-found: warn
+
       - name: Publish GitHub release
         run: npm run release:win
         env:

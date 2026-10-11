@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'">
+<title>CodeHarborX</title><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="dialog.css"></head>
+<body class="confirmation-window">
+  <header class="dialog-brand"><img src="../build/icon.png" alt=""><div><b>CodeHarbor<span>X</span></b><small>YOUR LOCAL HARBOR</small></div><button id="dialogClose" aria-label="Cancel and close">×</button></header>
+  <main class="confirmation-content"><span class="dialog-eyebrow">CONFIRM ACTION</span><h1 id="dialogTitle">Confirm deletion</h1><p id="dialogDetail"></p></main>
+  <footer class="confirmation-actions"><button class="button" id="dialogCancel">Keep it</button><button class="button danger" id="dialogConfirm">Delete</button></footer>
+  <script src="dialog.js"></script>
+</body></html>

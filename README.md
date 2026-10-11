@@ -2,6 +2,15 @@
 
 Standalone Windows development control center **plus a local Builder studio**.
 
+## Version 0.6.2 — Branded dialogs and setup
+
+- App popups use branded headers, clearer typography, softer surfaces, focus outlines and matching light/dark colors.
+- Delete confirmations use a dedicated themed CodeHarborX window. **Keep it** is focused by default; Escape and closing the window cancel. Only the dialog's own renderer can confirm the action.
+- Modal forms trap keyboard focus and keep the underlying app inactive until closed.
+- The Windows installer and uninstaller use CodeHarborX artwork, a light branded surface, Segoe UI typography and custom welcome/completion copy.
+- In-app **Install & Restart** now applies future updates silently and relaunches CodeHarborX. Existing projects, settings and encrypted tunnel credentials remain in app data.
+- The system file picker and Windows permission prompts remain managed by Windows.
+
 ## Version 0.6.1 — Delete controls
 
 - Builder project cards include **Delete**; the editor includes **Delete file**.

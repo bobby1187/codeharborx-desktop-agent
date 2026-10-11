@@ -361,17 +361,25 @@ function openProjectModal() {
     }
   };
 }
+let modalPreviousFocus = null;
 function showModal(content) {
+  if ($('#modal').classList.contains('hidden')) modalPreviousFocus = document.activeElement;
   $("#modalBody").innerHTML = content;
   $("#modal").classList.remove("hidden");
   $("#modal").setAttribute("aria-hidden","false");
+  $('.shell').inert = true;
+  document.querySelectorAll('#modal [data-close-modal]').forEach(button => button.onclick = closeModal);
+  const focus = $('#modalBody input, #modalBody select, #modalBody textarea, #modalBody button') || $('.modal-close');
+  focus.focus();
 }
 function closeModal() {
   $("#modal").classList.add("hidden");
   $("#modal").setAttribute("aria-hidden","true");
+  $('.shell').inert = false;
+  if (modalPreviousFocus?.isConnected) modalPreviousFocus.focus();
 }
 function showInfo(title, text) {
-  showModal("<h2>"+esc(title)+"</h2><p>Local CodeHarborX result</p><div class=\"codebox\" style=\"white-space:pre-wrap\">"+esc(text)+"</div>");
+  showModal('<h2>'+esc(title)+'</h2><p>Here’s the latest from your local harbor.</p><div class="dialog-result">'+esc(text)+'</div><div class="dialog-footer"><button class="button primary" data-close-modal>Got it</button></div>');
 }
 
 document.querySelectorAll("[data-close-modal]").forEach((x)=>x.onclick=closeModal);
@@ -391,6 +399,11 @@ $("#globalSearch").addEventListener("keydown",(event)=>{
   }
 });
 document.addEventListener("keydown",(event)=>{
+  if (event.key === 'Tab' && !$('#modal').classList.contains('hidden')) {
+    const controls = [...document.querySelectorAll('#modal button, #modal input, #modal select, #modal textarea')].filter(element => !element.disabled && element.offsetParent !== null);
+    const index = controls.indexOf(document.activeElement);
+    event.preventDefault(); controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase()==="k") {
     event.preventDefault();
     $("#globalSearch").focus();

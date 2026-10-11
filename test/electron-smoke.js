@@ -1,6 +1,7 @@
 // Run with Electron after the native supervisor is built. Uses synthetic credentials only.
 const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 const { createBuilder } = require('../src/builder');
+const { createDialogs } = require('../src/dialogs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -26,6 +27,7 @@ app.whenReady().then(async () => {
     ipcMain.handle('builder:read-file', (_event, id, rel) => builder.readFile(id, rel));
     ipcMain.handle('builder:delete-project', () => ({ canceled: true }));
     win = new BrowserWindow({ show: false, width: 1440, height: 920, webPreferences: { preload: path.resolve('src/preload.js'), contextIsolation: true, nodeIntegration: false } });
+    const dialogs = createDialogs({ BrowserWindow, ipcMain });
     const errors = []; win.webContents.on('console-message', (_event, level, message) => { if (level >= 3) errors.push(message); });
     await win.loadFile(path.resolve('src/app.html'), { hash: 'settings' });
     await new Promise(r => setTimeout(r, 800));
@@ -48,8 +50,24 @@ app.whenReady().then(async () => {
     await win.webContents.executeJavaScript("location.hash = 'settings'");
     await new Promise(r => setTimeout(r, 300));
     await fs.mkdir(path.resolve('../../outputs'), { recursive: true });
+    for (const theme of ['dark', 'light']) {
+      const answer = dialogs.confirm(win, { theme, title: 'Delete this Builder project?', detail: 'The project and its files will move to the Windows Recycle Bin. You can restore them if you change your mind.' });
+      const popup = BrowserWindow.getAllWindows().find(w => w !== win);
+      await new Promise(resolve => popup.webContents.once('did-finish-load', resolve));
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const state = await popup.webContents.executeJavaScript("({theme:document.documentElement.dataset.theme,focused:document.activeElement.id,title:document.querySelector('#dialogTitle').textContent})");
+      assert.equal(state.theme, theme); assert.equal(state.focused, 'dialogCancel');
+      await fs.writeFile(path.resolve(`../../outputs/CodeHarborX-confirmation-${theme}.png`), (await popup.webContents.capturePage()).toPNG());
+      await popup.webContents.executeJavaScript("document.querySelector('#dialogCancel').click()");
+      assert.equal(await answer, false);
+      await win.webContents.executeJavaScript(`document.documentElement.dataset.theme = '${theme}'; showInfo('Saved to your harbor', 'Your settings are saved securely on this computer.');`);
+      assert.equal(await win.webContents.executeJavaScript("document.querySelector('.shell').inert"), true);
+      await fs.writeFile(path.resolve(`../../outputs/CodeHarborX-popup-${theme}.png`), (await win.webContents.capturePage()).toPNG());
+      await win.webContents.executeJavaScript("document.querySelector('#modalBody [data-close-modal]').click()");
+      assert.equal(await win.webContents.executeJavaScript("document.querySelector('.shell').inert"), false);
+    }
     await fs.writeFile(path.resolve('../../outputs/CodeHarborX-tunnel-settings.png'), (await win.webContents.capturePage()).toPNG());
-    console.log('PASS: Windows DPAPI, credential isolation, branded UI, deletion controls, canceled deletion, and native Windows Recycle Bin.');
+    console.log('PASS: secure storage, deletion, native Recycle Bin, themed confirmations and popups in light and dark.');
   } finally { if (win) win.destroy(); await fs.rm(directory, { recursive: true, force: true }); }
   app.exit(0);
 }).catch(() => { console.error('FAIL: Electron smoke validation.'); app.exit(1); });

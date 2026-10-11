@@ -1,0 +1,11 @@
+.modal-backdrop{background:rgba(2,8,18,.7);backdrop-filter:blur(10px)}
+.modal-card{padding:0;border-radius:22px;background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--primary),transparent 91%),transparent 65%),var(--card);border-color:color-mix(in srgb,var(--primary),var(--border) 70%);box-shadow:0 32px 100px rgba(0,0,0,.4);animation:harbor-dialog-in .16s ease-out}
+.modal-brand{display:flex;align-items:center;gap:10px;padding:20px 26px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface),transparent 25%)}.modal-brand img{width:36px;height:36px}.modal-brand b{font-size:15px;letter-spacing:-.4px}.modal-brand b span{color:var(--accent)}.modal-brand small{display:block;margin-top:3px;font-size:8px;letter-spacing:1.6px;color:var(--muted)}
+.modal-close{top:22px;right:24px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:20px}.modal-close:hover{color:var(--text);border-color:var(--primary)}
+#modalBody{padding:25px 28px 28px}.modal-card h2{font-size:24px;line-height:1.3;letter-spacing:-.6px;margin:0 0 10px}.modal-card #modalBody>p{font-size:13px;line-height:1.6;margin:0 0 22px;color:var(--muted)}
+.modal-card .field label{font-size:11px;margin-bottom:8px}.modal-card .field input,.modal-card .field select,.modal-card .field textarea{font-size:13px;padding:12px;border-radius:11px;min-height:42px}.modal-card .button{font-size:12px;min-height:42px;padding:11px 18px;border-radius:11px}.modal-card .primary{box-shadow:0 5px 20px color-mix(in srgb,var(--primary),transparent 80%)}
+.dialog-result{padding:18px;border:1px solid var(--border);border-left:3px solid var(--cyan);border-radius:12px;background:var(--surface);font:13px/1.65 var(--font);color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere}.dialog-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.modal button:focus-visible,.modal input:focus-visible,.modal select:focus-visible,.modal textarea:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+html[data-theme="light"] .modal-backdrop{background:rgba(31,55,86,.32)}html[data-theme="light"] .modal-card{box-shadow:0 30px 100px rgba(25,54,93,.22)}
+@keyframes harbor-dialog-in{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.modal-card{animation:none}}

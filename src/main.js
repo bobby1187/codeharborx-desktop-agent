@@ -9,6 +9,8 @@ const { autoUpdater } = require("electron-updater");
 const { createBuilder } = require("./builder");
 const { TunnelManager } = require("./tunnel");
 const { removeRecord } = require('./records');
+const { createDialogs } = require('./dialogs');
+const dialogs = createDialogs({ BrowserWindow, ipcMain });
 let tunnel = null;
 let quitReady = false;
 let quitPending = false;
@@ -427,11 +429,9 @@ function requireLocalUI(event) {
 }
 async function confirmDelete(event, name, detail) {
   requireLocalUI(event);
-  const result = await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
-    type: 'warning', title: 'CodeHarborX', message: `Delete ${name}?`, detail,
-    buttons: ['Cancel', 'Delete'], defaultId: 0, cancelId: 0, noLink: true
+  return dialogs.confirm(BrowserWindow.fromWebContents(event.sender), {
+    title: `Delete ${name}?`, detail, theme: (await loadConfig()).theme
   });
-  return result.response === 1;
 }
 ipcMain.handle('builder:delete-project', async (event, id) => {
   requireLocalUI(event);
@@ -503,7 +503,7 @@ ipcMain.handle("update:check", async () => {
 });
 ipcMain.handle("update:install", async () => {
   if (updateStatus.state !== "ready") return { ok: false, reason: "No downloaded update is ready." };
-  setImmediate(async () => { if (tunnel) await tunnel.stop(); autoUpdater.quitAndInstall(false, true); });
+  setImmediate(async () => { if (tunnel) await tunnel.stop(); autoUpdater.quitAndInstall(true, true); });
   return { ok: true };
 });
 
