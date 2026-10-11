@@ -1,7 +1,7 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.1.0",
-  "description": "CodeHarborX Windows desktop agent for local NAS backup operations.",
+  "version": "0.2.0",
+  "description": "CodeHarborX Desktop Agent — local NAS, AI runtime, MCP bridge, backup and packaging control.",
   "main": "src/main.js",
   "author": "CodeHarborX",
   "license": "UNLICENSED",
@@ -19,13 +19,16 @@
     "productName": "CodeHarborX Desktop Agent",
     "artifactName": "CodeHarborX-Desktop-Agent-Setup-${version}.${ext}",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
+      "build/icon.png",
       "package.json"
     ],
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
