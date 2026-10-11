@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CodeHarborX Desktop Agent</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brandmark">CHX</div>
+      <div>
+        <div class="eyebrow">CODEHARBORX</div>
+        <h1>Desktop Agent</h1>
+        <p>Local bridge for your ROG Strix, UGREEN NAS, and CodeHarborX Control Center.</p>
+      </div>
+    </header>
+
+    <section class="status-card">
+      <div class="status-line"><span id="statusDot" class="dot warn"></span><strong id="statusText">Not connected</strong></div>
+      <div class="minor" id="deviceText"></div>
+    </section>
+
+    <section class="form-card">
+      <label>CodeHarborX server
+        <input id="server" spellcheck="false" />
+      </label>
+      <label>UGREEN NAS backup root
+        <input id="nasRoot" spellcheck="false" />
+      </label>
+      <label>Pairing key
+        <input id="agentKey" type="password" spellcheck="false" placeholder="CHX-…" />
+      </label>
+
+      <div class="actions">
+        <button id="testNas" class="secondary">Test NAS</button>
+        <button id="connect" class="primary">Connect</button>
+        <button id="scan" class="secondary">Scan backups</button>
+        <button id="openNas" class="secondary">Open NAS</button>
+      </div>
+    </section>
+
+    <section class="log-card">
+      <div class="log-head"><strong>Agent activity</strong><span>v0.1.0</span></div>
+      <pre id="log"></pre>
+    </section>
+
+    <footer>
+      This version only reads the CodeHarborX backup area. It does not repartition, format, or alter the NAS storage pool.
+    </footer>
+  </main>
+  <script src="renderer.js"></script>
+</body>
+</html>
