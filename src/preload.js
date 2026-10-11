@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld("codeHarborX", {
   connect: (config) => ipcRenderer.invoke("agent:connect", config),
   scanBackups: (nasRoot) => ipcRenderer.invoke("backups:scan", nasRoot),
   openNas: (nasRoot) => ipcRenderer.invoke("nas:open", nasRoot),
+  checkOllama: () => ipcRenderer.invoke("ollama:check"),
+  systemInfo: () => ipcRenderer.invoke("system:info"),
   onHeartbeat: (callback) => ipcRenderer.on("heartbeat:status", (_event, status) => callback(status))
 });
