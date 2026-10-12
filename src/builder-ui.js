@@ -9,7 +9,7 @@
 
   function projectCard(project) {
     const preview = project.preview && project.preview.running ? '<span class="badge good">Preview live</span>' : '<span class="badge info">Local</span>';
-    return '<article class="builder-project-card" data-builder-open="'+e(project.id)+'"><div><small>'+e(project.template.toUpperCase())+'</small><h3>'+e(project.name)+'</h3><p>'+e(project.path)+'</p></div><div>'+preview+' <button class="mini-button danger" data-builder-delete="'+e(project.id)+'" '+(busy?'disabled':'')+'>Delete</button></div></article>';
+    return '<article class="builder-project-card"><div><small>'+e(String(project.template || "local").toUpperCase())+'</small><h3>'+e(project.name)+'</h3><p>'+e(project.path)+'</p></div><div>'+preview+' <button class="mini-button primary" data-builder-open="'+e(project.id)+'" '+(busy?'disabled':'')+'>Open project</button> <button class="mini-button danger" data-builder-delete="'+e(project.id)+'" '+(busy?'disabled':'')+'>Delete</button></div></article>';
   }
 
   function fileButtons() {
@@ -26,7 +26,7 @@
   function page(state, snapshot) {
     const projects = state && state.projects || [];
     const active = selectedProject ? projects.find(p => p.id === selectedProject) : null;
-    let html = '<div class="page-title"><div><span class="eyebrow">LOCAL DEVELOPMENT STUDIO</span><h1>Builder</h1><p>Create websites and web platforms locally, edit the source, generate changes with Ollama, preview on localhost, and expose the project through CodeHarborX MCP tools.</p></div><div class="section-actions"><button class="button primary" id="builderNew">＋ New Builder Project</button></div></div>';
+    let html = '<div class="page-title"><div><span class="eyebrow">LOCAL DEVELOPMENT STUDIO</span><h1>Builder</h1><p>Create websites and web platforms locally, edit the source, generate changes with Ollama, preview on localhost, and expose the project through CodeHarborX MCP tools.</p></div><div class="section-actions"><button class="button" id="builderRefreshProjects">Refresh projects</button><button class="button primary" id="builderNew">＋ New Builder Project</button></div></div>';
 
     if (!projects.length) {
       html += '<section class="builder-welcome"><div><span class="eyebrow">CODEHARBORX BUILDER</span><h2>Build without leaving your computer.</h2><p>Start with a website or dashboard template. Project files live in the local Builder workspace and can be edited by you, local AI, or an approved MCP client.</p><button class="button primary" id="builderNewEmpty">Create your first project</button></div><img src="../build/logo.png" alt="CodeHarborX"></section>';
@@ -36,7 +36,7 @@
     html += '<section class="builder-projects">'+projects.map(projectCard).join("")+'</section>';
 
     if (!active) {
-      html += '<div class="notice" style="margin-top:14px"><strong>Select a Builder project</strong> to open its files, local AI prompt, and live preview.</div>';
+      html += '<div class="notice" style="margin-top:14px"><strong>Open an existing project</strong> using its Open project button to edit its files, local AI prompt, and live preview.</div>';
       return html;
     }
 
@@ -85,6 +85,14 @@
   }
 
   function bind(ctx) {
+    const refreshProjects = document.querySelector('#builderRefreshProjects');
+    if (refreshProjects) refreshProjects.onclick = async () => {
+      refreshProjects.disabled = true;
+      try { await reloadState(ctx); }
+      catch (error) { ctx.showInfo('Refresh projects', error.message || String(error)); }
+      finally { refreshProjects.disabled = false; }
+    };
+
     document.querySelectorAll('[data-builder-delete]').forEach(button => button.onclick = async event => {
       event.stopPropagation();
       const id = button.dataset.builderDelete;
@@ -173,3 +181,4 @@
 
   window.CodeHarborXBuilder = { page, bind };
 })();
+

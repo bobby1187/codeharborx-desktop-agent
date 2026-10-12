@@ -38,6 +38,15 @@ function navigate(next) {
   location.hash = next;
   drawNav();
   render();
+  if (next === 'builder' || next === 'projects') {
+    const requestedRoute = next;
+    Promise.all([window.codeHarborX.getSnapshot(), window.codeHarborX.builderStatus()])
+      .then(([latestSnapshot, latestBuilder]) => {
+        snapshot = latestSnapshot; builderState = latestBuilder;
+        if (route === requestedRoute) render();
+      })
+      .catch(error => showInfo('Open projects', error.message || String(error)));
+  }
 }
 function drawNav() {
   $("#nav").innerHTML = NAV.map((item) =>
@@ -446,3 +455,4 @@ drawNav();
 refresh().catch((error)=>{
   $("#main").innerHTML = '<div class="empty">CodeHarborX could not load local data: '+esc(error.message || String(error))+"</div>";
 });
+

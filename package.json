@@ -1,7 +1,7 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.6.2",
-  "description": "CodeHarborX — standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
+  "version": "0.6.3",
+  "description": "CodeHarborX \u2014 standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",
   "license": "UNLICENSED",
@@ -78,3 +78,4 @@
     "electron-updater": "6.6.2"
   }
 }
+
