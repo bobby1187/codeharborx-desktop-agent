@@ -4,6 +4,7 @@
   let selectedFile = null;
   let fileContent = "";
   let busy = false;
+  let promptDraft = "", modelDraft = "", taskStatus = "Ask for a change to the open project.";
 
   const e = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
 
@@ -41,11 +42,12 @@
     }
 
     const previewUrl = active.preview && active.preview.running ? active.preview.url : "";
+    html += '<section class="builder-task-panel"><h2>Ask Builder</h2><p>Give a follow-up task for '+e(active.name)+'. Local AI reads the saved source files before making changes.</p><div class="builder-ai"><div class="field"><label for="builderModel">Local AI model</label><select id="builderModel">'+modelOptions(snapshot)+'</select></div><div class="field grow"><label for="builderPrompt">What should Builder do next?</label><textarea id="builderPrompt" placeholder="Example: Add a settings page and update its CSS and TypeScript.">'+e(promptDraft)+'</textarea></div><button class="button primary" id="builderGenerate" '+(busy?'disabled':'')+'>'+(busy?'Working…':'Send task')+'</button></div><p role="status">'+e(taskStatus)+'</p></section>';
     html += '<section class="builder-studio">' +
-      '<aside class="builder-files"><div class="builder-pane-head"><div><small>PROJECT</small><b>'+e(active.name)+'</b></div><button class="mini-button" id="builderOpenFolder">Folder</button></div><div class="builder-file-list">'+fileButtons()+'</div></aside>' +
-      '<div class="builder-editor"><div class="builder-pane-head"><div><small>EDITOR</small><b>'+e(selectedFile || "Choose a file")+'</b></div><div><button class="mini-button" id="builderRefreshFiles">Refresh</button> <button class="mini-button danger" id="builderDeleteFile" '+(!selectedFile||busy?'disabled':'')+'>Delete file</button> <button class="mini-button primary" id="builderSave" '+(!selectedFile?"disabled":"")+'>Save</button></div></div>' +
+      '<aside class="builder-files"><div class="builder-pane-head"><div><small>PROJECT</small><b>'+e(active.name)+'</b></div><div><button class="mini-button" id="builderNewFile">New file</button> <button class="mini-button" id="builderOpenFolder">Folder</button></div></div><div class="builder-file-list">'+fileButtons()+'</div></aside>' +
+      '<div class="builder-editor"><div class="builder-pane-head"><div><small>CODE EDITOR · HTML / CSS / JS / TS / C# / TEXT</small><b>'+e(selectedFile || "Choose a file")+'</b></div><div><button class="mini-button" id="builderRefreshFiles">Refresh</button> <button class="mini-button danger" id="builderDeleteFile" '+(!selectedFile||busy?'disabled':'')+'>Delete file</button> <button class="mini-button primary" id="builderSave" '+(!selectedFile?"disabled":"")+'>Save</button></div></div>' +
       '<textarea id="builderEditor" spellcheck="false" placeholder="Choose a file from the left.">'+e(fileContent)+'</textarea>' +
-      '<div class="builder-ai"><div class="field"><label>Local AI model</label><select id="builderModel">'+modelOptions(snapshot)+'</select></div><div class="field grow"><label>Tell CodeHarborX what to build or change</label><textarea id="builderPrompt" placeholder="Example: Turn this into a modern Afghan restaurant website with a menu, grocery store section, contact area, and mobile layout."></textarea></div><button class="button primary" id="builderGenerate" '+(busy?"disabled":"")+'>'+(busy?"Building…":"Build with Local AI")+'</button></div></div>' +
+      '</div>' +
       '<div class="builder-preview"><div class="builder-pane-head"><div><small>LIVE PREVIEW</small><b>'+(previewUrl?e(previewUrl):"Not running")+'</b></div><div><button class="mini-button" id="builderPreview">'+(previewUrl?"Restart":"Start")+'</button> '+(previewUrl?'<button class="mini-button danger" id="builderStopPreview">Stop</button>':"")+'</div></div>' +
       (previewUrl?'<iframe src="'+e(previewUrl)+'" title="Builder preview"></iframe>':'<div class="builder-preview-empty"><div>◫</div><b>Local preview is stopped</b><span>Start it to see your website running on this computer.</span></div>') +
       '</div></section>';
@@ -84,7 +86,28 @@
     };
   }
 
+
+  function newFile(ctx) {
+    ctx.showModal('<h2>New code file</h2><p>Create HTML, CSS, JavaScript, TypeScript, C#, Python, JSON or another text file. Compiled languages require their own build tools.</p><div class="field"><label for="builderNewFilePath">File path</label><input id="builderNewFilePath" placeholder="src/example.ts"></div><button class="button primary" id="builderCreateFile">Create file</button>');
+    document.querySelector('#builderCreateFile').onclick = async () => {
+      const rel = document.querySelector('#builderNewFilePath').value.trim().replace(/\\/g,'/');
+      if (!rel || rel.split('/').some(p=>!p||p.startsWith('.')||p==='node_modules') || /[:\x00]/.test(rel)) return ctx.showInfo('New file','Use a relative file path inside this project.');
+      try {
+        const current = await window.codeHarborX.builderListFiles(selectedProject);
+        if (current.includes(rel)) return ctx.showInfo('New file','That file already exists. Select it from the file list.');
+        await window.codeHarborX.builderWriteFile(selectedProject,rel,'');
+        ctx.closeModal(); await reloadState(ctx); await loadFiles(ctx,selectedProject,rel);
+      } catch(error) { ctx.showInfo('New file',error.message||String(error)); }
+    };
+  }
   function bind(ctx) {
+    const newFileButton = document.querySelector('#builderNewFile');
+    if (newFileButton) newFileButton.onclick = ()=>newFile(ctx);
+    const promptInput = document.querySelector('#builderPrompt');
+    if (promptInput) promptInput.oninput = ()=>{promptDraft=promptInput.value;};
+    const modelInput = document.querySelector('#builderModel');
+    if (modelInput) { if (modelDraft && Array.from(modelInput.options).some(o=>o.value===modelDraft)) modelInput.value=modelDraft; modelInput.onchange=()=>{modelDraft=modelInput.value;}; }
+
     const refreshProjects = document.querySelector('#builderRefreshProjects');
     if (refreshProjects) refreshProjects.onclick = async () => {
       refreshProjects.disabled = true;
@@ -165,15 +188,16 @@
       const model = document.querySelector("#builderModel").value;
       if (!prompt) return ctx.showInfo("Builder","Tell CodeHarborX what you want it to build.");
       if (!model) return ctx.showInfo("Builder","No Ollama model is available. Start Ollama or install a local model first.");
+      promptDraft = prompt; modelDraft = model; taskStatus = "Working on your task…";
       busy = true; ctx.rerender();
       try {
         const result = await window.codeHarborX.builderGenerate({ projectId:selectedProject, prompt, model });
-        busy = false;
+        busy = false; taskStatus = "Updated: " + result.files.join(", ");
         await reloadState(ctx);
         await loadFiles(ctx, selectedProject, selectedFile || "index.html");
         ctx.showInfo("Builder","Local AI updated: "+result.files.join(", "));
       } catch (err) {
-        busy = false; ctx.rerender();
+        busy = false; taskStatus = "Task failed: " + (err.message || String(err)); ctx.rerender();
         ctx.showInfo("Builder",err.message || String(err));
       }
     };
