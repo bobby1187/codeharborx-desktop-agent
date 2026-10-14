@@ -4,6 +4,10 @@ const path = require('node:path');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { createPackaging } = require('../src/packaging');
+function reportFailure(error) {
+  console.error(error.message);
+  if (process.env.GITHUB_ACTIONS) console.error('::error title=Native packaging failed::'+String(error.message).slice(-16000).replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A'));
+}
 async function main() {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'codeharborx-package-smoke-'));
   try {
@@ -15,7 +19,7 @@ async function main() {
     const target = { win32:'windows', darwin:'macos', linux:'linux' }[process.platform];
     const result = await packaging.build({ name:'Platform Smoke', version:'1.0.0', target });
     console.log(result.log);
-    if (result.status !== 'complete') throw new Error(result.message);
+    if (result.status !== 'complete') throw new Error(result.message+'\n'+result.log);
     await verifyRuntime(path.dirname(result.artifacts[0]));
     for (const file of result.artifacts) {
       if ((await fs.stat(file)).size === 0) throw new Error('Empty installer');
@@ -30,8 +34,8 @@ async function main() {
 }
 if (process.versions.electron) {
   const { app } = require('electron');
-  app.whenReady().then(main).then(() => app.exit(0)).catch(error => { console.error(error.message); app.exit(1); });
-} else main().catch(error => { console.error(error.message); process.exitCode = 1; });
+  app.whenReady().then(main).then(() => app.exit(0)).catch(error => { reportFailure(error); app.exit(1); });
+} else main().catch(error => { reportFailure(error); process.exitCode = 1; });
 
 async function verifyRuntime(output) {
   const executable = process.platform === 'win32' ? path.join(output, 'win-unpacked', 'Platform Smoke.exe') : process.platform === 'darwin' ? path.join(output, 'mac', 'Platform Smoke.app', 'Contents', 'MacOS', 'Platform Smoke') : path.join(output, 'linux-unpacked', 'platform-smoke');
