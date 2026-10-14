@@ -67,3 +67,17 @@ for (const [host,target,key,format,extension] of [['win32','windows','win','nsis
     assert.equal((await manager.build({name:'App',version:'1.0.0',target})).status,'complete');
   });
 }
+
+test('normalizes aliased staging directories without weakening archive integrity',async t=>{
+  const f=await fixture(t),real=path.join(f.root,'real-packages'),alias=path.join(f.root,'alias-packages');
+  await fs.mkdir(real);await fs.symlink(real,alias,'junction');
+  const manager=createPackaging({directory:alias,platform:'linux',resolveTool:()=>'/mock/builder',run:async(command,args)=>{
+    const config=JSON.parse(await fs.readFile(path.join(args[2],'build-config.json'),'utf8'));
+    assert.equal(config.projectDir,await fs.realpath(config.projectDir));
+    assert.equal(config.config.asar,true);
+    await fs.mkdir(config.config.directories.output,{recursive:true});
+    for(const suffix of ['.AppImage','.deb'])await fs.writeFile(path.join(config.config.directories.output,'App'+suffix),'artifact');
+  }});
+  await manager.select(f.source);assert.equal((await manager.build({name:'App',version:'1.0.0',target:'linux'})).status,'complete');
+  const restored=createPackaging({directory:alias});assert.equal((await restored.init()).artifacts.length,2);
+});

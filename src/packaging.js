@@ -40,10 +40,16 @@ async function copyWeb(source, destination) {
 
 function createPackaging({ directory, notify = () => {}, platform = process.platform, run = runProcess, resolveTool, openPath }) {
   let selected = null, state = { status:'idle', message:'Select a project folder to begin.', artifacts:[], log:'' }, busy = false;
-  const jobs = path.join(directory, 'jobs'), tooling = path.join(directory, 'tooling');
+  let jobs = path.join(directory, 'jobs'), tooling = path.join(directory, 'tooling');
+  async function prepare() {
+    await fs.mkdir(directory, { recursive:true });
+    directory = await fs.realpath(directory);
+    jobs = path.join(directory, 'jobs'); tooling = path.join(directory, 'tooling');
+  }
   function publish(patch) { state = { ...state, ...patch }; notify(view()); }
   function view() { return { ...state, project:selected && { ...selected }, host:platform, targets:Object.keys(TARGETS) }; }
   async function init() {
+    await prepare();
     try {
       const saved = JSON.parse(await fs.readFile(path.join(directory, 'last-package.json'), 'utf8'));
       if (saved.status === 'complete' && Array.isArray(saved.artifacts) && saved.artifacts.length && saved.artifacts.every(file => typeof file === 'string' && path.resolve(file).startsWith(path.resolve(jobs) + path.sep))) {
@@ -55,6 +61,7 @@ function createPackaging({ directory, notify = () => {}, platform = process.plat
   }
   async function select(folder) {
     if (busy) throw new Error('Wait for the current package to finish.');
+    await prepare();
     selected = await inspectProject(folder);
     publish({ status:'idle', message:'Project ready to package.', artifacts:[], log:'' });
     return view();
