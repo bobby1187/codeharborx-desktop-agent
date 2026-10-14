@@ -7,13 +7,13 @@ on:
     paths:
       - 'src/packaging*.js'
       - 'test/packaging.test.js'
-      - 'scripts/packaging-smoke.js'
+      - 'scripts/packaging*.js'
       - '.github/workflows/packaging-smoke.yml'
   pull_request:
     paths:
       - 'src/packaging*.js'
       - 'test/packaging.test.js'
-      - 'scripts/packaging-smoke.js'
+      - 'scripts/packaging*.js'
       - '.github/workflows/packaging-smoke.yml'
 jobs:
   package:
@@ -31,7 +31,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - run: node --test test/packaging.test.js
+      - run: node scripts/packaging-tests.js
       - if: runner.os == 'Linux'
         run: xvfb-run -a npx electron scripts/packaging-smoke.js --no-sandbox
       - if: runner.os != 'Linux'

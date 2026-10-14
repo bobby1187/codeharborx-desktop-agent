@@ -12,7 +12,7 @@ async function fixture(t) {
   return {root,source,web};
 }
 test('finds built output and rejects unbuilt projects without running project scripts',async t=>{
-  const f=await fixture(t);assert.equal((await inspectProject(f.source)).web,f.web);
+  const f=await fixture(t);assert.equal((await inspectProject(f.source)).web,await fs.realpath(f.web));
   await fs.rm(path.join(f.web,'index.html'));await assert.rejects(inspectProject(f.source),/Build your frontend first/);
 });
 test('copies public assets, excludes secrets/dependencies, and refuses linked assets',async t=>{
