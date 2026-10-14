@@ -25,7 +25,10 @@ test('copies public assets, excludes secrets/dependencies, and refuses linked as
 });
 test('stages a desktop wrapper, passes target options, verifies artifacts, and preserves source',async t=>{
   const f=await fixture(t);let config;
-  const manager=createPackaging({directory:path.join(f.root,'packages'),platform:'linux',resolveTool:()=>'/mock/builder',run:async(command,args)=>{
+  const manager=createPackaging({directory:path.join(f.root,'packages'),platform:'linux',resolveTool:()=>'/mock/builder',run:async(command,args,options)=>{
+    assert.equal(options.env.ELECTRON_NO_ASAR,'1');
+    assert.equal(path.dirname(args[0]),args[2]);
+    assert.match(await fs.readFile(args[0],'utf8'),/require\(tool\)/);
     config=JSON.parse(await fs.readFile(path.join(args[2],'build-config.json'),'utf8'));
     assert.deepEqual(config.linux,['AppImage','deb']);assert.equal(config.publish,'never');
     const pkg=JSON.parse(await fs.readFile(path.join(config.projectDir,'package.json'),'utf8'));assert.equal(pkg.productName,'My Platform');

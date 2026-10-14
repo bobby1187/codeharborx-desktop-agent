@@ -96,8 +96,12 @@ function createPackaging({ directory, notify = () => {}, platform = process.plat
       const config = { projectDir:staged, [target.flag]:Array.isArray(target.format) ? target.format : [target.format], x64:true, publish:'never', config:{ appId:'local.codeharborx.'+slug, productName:name, electronVersion:'38.2.1', electronDownload:{ cache:path.join(directory, 'cache', 'electron') }, directories:{ output }, files:['main.js','web/**/*','package.json'], artifactName:'${productName}-${version}-${os}-${arch}.${ext}', asar:true, npmRebuild:false, publish:[], nsis:{ oneClick:false, allowToChangeInstallationDirectory:true }, mac:{ identity:null }, linux:{ category:'Utility', maintainer:'Project owner' } } };
       await fs.writeFile(path.join(job, 'build-config.json'), JSON.stringify(config));
       const entry = await tool();
+      // Run outside app.asar with Electron archive interception disabled: the
+      // packager must create real .asar files rather than open them as folders.
+      const worker = path.join(job, 'packaging-worker.js');
+      await fs.copyFile(path.join(__dirname, 'packaging-worker.js'), worker);
       publish({ message:'Building '+input.target+' package. The first build downloads platform tools and Electron.' });
-      await run(process.execPath, [path.join(__dirname, 'packaging-worker.js'), entry, job], { cwd:job, env:{ ...process.env, ELECTRON_RUN_AS_NODE:'1', ELECTRON_GET_USE_PROXY:'1', CSC_IDENTITY_AUTO_DISCOVERY:'false', ELECTRON_BUILDER_CACHE:path.join(directory, 'cache', 'builder') } }, log);
+      await run(process.execPath, [worker, entry, job], { cwd:job, env:{ ...process.env, ELECTRON_RUN_AS_NODE:'1', ELECTRON_NO_ASAR:'1', ELECTRON_GET_USE_PROXY:'1', CSC_IDENTITY_AUTO_DISCOVERY:'false', ELECTRON_BUILDER_CACHE:path.join(directory, 'cache', 'builder') } }, log);
       const artifacts = [];
       for (const filename of await fs.readdir(output)) {
         if ((Array.isArray(target.extension) ? target.extension : [target.extension]).some(extension => filename.endsWith(extension)) && (await fs.stat(path.join(output, filename))).size > 0) artifacts.push(path.join(output, filename));
