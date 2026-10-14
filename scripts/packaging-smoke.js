@@ -21,7 +21,12 @@ async function main() {
       if ((await fs.stat(file)).size === 0) throw new Error('Empty installer');
       console.log('PASS: '+path.basename(file));
     }
-  } finally { await fs.rm(directory, { recursive:true, force:true }); }
+  } finally {
+    // Treat generated archives as ordinary files during fixture cleanup.
+    const previous = process.noAsar; process.noAsar = true;
+    try { await fs.rm(directory, { recursive:true, force:true }); }
+    finally { process.noAsar = previous; }
+  }
 }
 if (process.versions.electron) {
   const { app } = require('electron');
