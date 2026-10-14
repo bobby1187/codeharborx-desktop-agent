@@ -1,6 +1,6 @@
 {
   "name": "codeharborx-desktop-agent",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "CodeHarborX \u2014 standalone desktop command center with local Builder, NAS backups, Ollama AI, MCP, packaging, and GitHub-powered updates.",
   "main": "src/main.js",
   "author": "CodeHarborX",

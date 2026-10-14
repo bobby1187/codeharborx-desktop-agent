@@ -1,0 +1,38 @@
+name: Validate project packaging
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - 'src/packaging*.js'
+      - 'test/packaging.test.js'
+      - 'scripts/packaging-smoke.js'
+      - '.github/workflows/packaging-smoke.yml'
+  pull_request:
+    paths:
+      - 'src/packaging*.js'
+      - 'test/packaging.test.js'
+      - 'scripts/packaging-smoke.js'
+      - '.github/workflows/packaging-smoke.yml'
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-15-intel, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: node --test test/packaging.test.js
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a npx electron scripts/packaging-smoke.js --no-sandbox
+      - if: runner.os != 'Linux'
+        run: npx electron scripts/packaging-smoke.js

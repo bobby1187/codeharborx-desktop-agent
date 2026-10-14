@@ -9,7 +9,13 @@ on:
       - ".github/workflows/release-windows.yml"
 
 jobs:
+  validate-project-packaging:
+    uses: ./.github/workflows/packaging-smoke.yml
+    permissions:
+      contents: read
+
   publish-windows:
+    needs: validate-project-packaging
     runs-on: windows-latest
     permissions:
       contents: write

@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const http = require("http");
 const { autoUpdater } = require("electron-updater");
 const { createBuilder } = require("./builder");
+const { createPackaging } = require('./packaging');
+let packaging = null;
 const { TunnelManager } = require("./tunnel");
 const { removeRecord } = require('./records');
 const { createDialogs } = require('./dialogs');
@@ -406,6 +408,12 @@ function createMainWindow() {
   mainWindow = new BrowserWindow(windowOptions("CodeHarborX"));
   mainWindow.removeMenu();
   mainWindow.loadFile(path.join(__dirname, "app.html"));
+  mainWindow.on('close', event => {
+    if (packaging && packaging.isBusy()) {
+      event.preventDefault();
+      mainWindow.webContents.send('packaging:status', { ...packaging.view(), message:'A package is still building. Wait for it to finish before closing CodeHarborX.' });
+    }
+  });
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
@@ -422,10 +430,26 @@ function createLocalWindow() {
   localWindow.on("closed", () => { localWindow = null; });
 }
 
+ipcMain.handle('packaging:status', event => { requireLocalUI(event); return packaging.view(); });
+ipcMain.handle('packaging:select', async event => {
+  requireLocalUI(event);
+  if (packaging.isBusy()) throw new Error('Wait for the current package to finish.');
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { title:'Select a built web project', properties:['openDirectory'] });
+  return result.canceled ? packaging.view() : packaging.select(result.filePaths[0]);
+});
+ipcMain.handle('packaging:build', (event, input) => { requireLocalUI(event); return packaging.build(input || {}); });
+ipcMain.handle('packaging:reveal', (event, index) => { requireLocalUI(event); return packaging.reveal(index); });
+app.on('before-quit', event => {
+  if (packaging && packaging.isBusy()) {
+    event.preventDefault();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('packaging:status', { ...packaging.view(), message:'A package is still building. Wait for it to finish before quitting.' });
+  }
+});
+
 ipcMain.handle("config:get", async () => loadConfig());
 function requireLocalUI(event) {
   const expected = require('url').pathToFileURL(path.join(__dirname, 'app.html')).href;
-  if (event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Only the CodeHarborX app can request deletion.');
+  if (event.senderFrame !== event.sender.mainFrame || event.senderFrame.url.split('#')[0] !== expected) throw new Error('Only the CodeHarborX app can request this action.');
 }
 async function confirmDelete(event, name, detail) {
   requireLocalUI(event);
@@ -508,6 +532,8 @@ ipcMain.handle("update:install", async () => {
 });
 
 app.whenReady().then(async () => {
+  packaging = createPackaging({ directory: path.join(app.getPath('userData'), 'packaging'), notify: status => broadcast('packaging:status', status), openPath: folder => shell.openPath(folder) });
+  await packaging.init();
   builder = createBuilder({ userDataPath: app.getPath("userData"), shell });
   await loadConfig();
   await loadData();

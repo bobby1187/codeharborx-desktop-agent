@@ -257,7 +257,7 @@ function render() {
   const map = {
     "dashboard":dashboardPage,"command-center":commandPage,"projects":projectsPage,"builder":()=>window.CodeHarborXBuilder.page(builderState,snapshot),"ai-agents":agentsPage,
     "workflows":workflowsPage,"desktop-agents":desktopPage,"local-runner":localRunnerPage,"github-sync":githubPage,
-    "backups":backupsPage,"analytics":analyticsPage,"extensions":extensionsPage,"team":teamPage,
+    "packaging":() => window.CodeHarborXPackaging.page(),"backups":backupsPage,"analytics":analyticsPage,"extensions":extensionsPage,"team":teamPage,
     "ai-control":aiControlPage,"settings":settingsPage
   };
   const page = map[route] ? map[route]() : simplePage(route);
@@ -267,6 +267,7 @@ function render() {
 }
 
 function bindActions() {
+  if (route === 'packaging') window.CodeHarborXPackaging.bind({ render, showInfo });
   document.querySelectorAll('[data-delete-collection]').forEach(button => button.onclick = async () => {
     button.disabled = true;
     try {
@@ -426,7 +427,8 @@ window.addEventListener("hashchange",()=>{
 });
 
 async function refresh() {
-  const results = await Promise.all([window.codeHarborX.getSnapshot(), window.codeHarborX.builderStatus()]);
+  const results = await Promise.all([window.codeHarborX.getSnapshot(), window.codeHarborX.builderStatus(), window.codeHarborX.packagingStatus()]);
+  window.CodeHarborXPackaging.update(results[2]);
   snapshot = results[0];
   builderState = results[1];
   document.documentElement.dataset.theme = snapshot.config.theme;
@@ -449,6 +451,11 @@ window.codeHarborX.onTunnelStatus(status => {
 window.codeHarborX.onPlatformStatus((status)=>{
   snapshot = status;
   render();
+});
+
+window.codeHarborX.onPackagingStatus(status => {
+  window.CodeHarborXPackaging.update(status);
+  if (route === 'packaging') window.CodeHarborXPackaging.paint();
 });
 
 drawNav();

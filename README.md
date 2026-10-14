@@ -2,6 +2,26 @@
 
 Standalone Windows development control center **plus a local Builder studio**.
 
+## Version 0.6.5 — Package existing web projects
+
+The App Packaging screen now creates Windows, macOS, and Linux desktop packages from selected built frontend folders. Release publication waits for native project-packaging checks on all three operating systems.
+
+## Package an existing web project
+
+Open **App Packaging → Choose folder**, select a built frontend, enter an app name and version, choose the target operating system, then click **Create package**. The selected folder must contain `index.html` in its root, `dist`, `build`, or `public` directory. Build React, Vue, Vite, and similar projects before packaging; use relative asset URLs or the generated app's local origin. Backend servers, databases, and development commands are not bundled or run. The generated app serves its frontend locally and isolates it from Node.js.
+
+Outputs target x64 computers:
+
+- **Windows:** an NSIS `.exe` installer with installation-folder selection and shortcuts.
+- **macOS:** an unsigned `.dmg`; build this target on a Mac running CodeHarborX. Signing and notarization are separate distribution steps.
+- **Linux:** a `.deb` installer for Debian / Ubuntu and a portable `.AppImage` for other distributions. AppImage may need executable permission and FUSE support, or extraction on systems without FUSE.
+
+Windows cross builds may require Wine. Native builds on the target OS are recommended. Installed CodeHarborX needs Node.js with npm and internet access on the first package build to prepare pinned packaging tools. Development checkouts reuse their installed electron-builder. Downloads retain normal TLS and artifact verification; builds never publish releases automatically.
+
+Progress and build logs appear in App Packaging. **Show in folder** opens the resulting artifacts, which can be transferred to the target computer. The latest successful output remains available after restarting CodeHarborX. Build copies and output are stored under the local app-data `packaging` directory; the selected project remains unchanged. Hidden files, source-control directories, dependency folders, and private key files are excluded. Select only frontend assets intended for distribution.
+
+Run `node --test test/packaging.test.js` for packaging validation and `node scripts/packaging-smoke.js` to build real native fixture installers. The project-packaging CI workflow checks Windows, macOS, and Linux without publishing.
+
 ## Version 0.6.2 — Branded dialogs and setup
 
 - App popups use branded headers, clearer typography, softer surfaces, focus outlines and matching light/dark colors.

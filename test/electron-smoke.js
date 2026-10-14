@@ -21,6 +21,7 @@ app.whenReady().then(async () => {
     assert.equal(safeStorage.decryptString(encrypted), 'synthetic-electron-credential');
     const snapshot = { appVersion: require('../package.json').version, config: { theme: 'dark', nasRoot: '' }, tunnel: await manager.view(), nasReachable: false, data: { projects: [], agents: [], workflows: [], extensions: [], activity: [] }, ollama: { status: 'offline', models: [] }, updateStatus: { state: 'dev' } };
     ipcMain.handle('platform:snapshot', () => snapshot);
+    ipcMain.handle('packaging:status', () => ({ status:'idle', message:'Select a folder.', artifacts:[], log:'', host:process.platform, project:null }));
     const builder = createBuilder({ userDataPath: directory, shell });
     const project = await builder.createProject({ name: 'Deletion smoke fixture' });
     ipcMain.handle('builder:status', () => builder.status());

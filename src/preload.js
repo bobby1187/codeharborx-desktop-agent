@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("codeHarborX", {
+  packagingStatus: () => ipcRenderer.invoke('packaging:status'),
+  selectPackagingFolder: () => ipcRenderer.invoke('packaging:select'),
+  buildPackage: input => ipcRenderer.invoke('packaging:build', input),
+  revealPackage: index => ipcRenderer.invoke('packaging:reveal', index),
+  onPackagingStatus: callback => ipcRenderer.on('packaging:status', (_event, status) => callback(status)),
   deleteRecord: (collection, id) => ipcRenderer.invoke('platform:delete-record', collection, id),
   builderDeleteProject: id => ipcRenderer.invoke('builder:delete-project', id),
   builderDeleteFile: (id, rel) => ipcRenderer.invoke('builder:delete-file', id, rel),
